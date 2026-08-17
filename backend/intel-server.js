@@ -25,6 +25,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// 防崩：任何未捕获异常/未处理的 Promise 只记录，不让进程退出（Render 免费档重启即 404）
+process.on('uncaughtException', e => console.error('[uncaught]', (e && e.stack) || e));
+process.on('unhandledRejection', e => console.error('[unhandledRejection]', (e && e.stack) || e));
+
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || 'rfa-admin-2026';
 const STATIC_DIR = process.env.STATIC_DIR || path.resolve(__dirname, '..');
@@ -41,8 +45,10 @@ function readJSON(file, fallback){
   try{ const s = fs.readFileSync(file, 'utf8'); return JSON.parse(s); }catch(e){ return fallback; }
 }
 function writeJSON(file, obj){
-  ensureDir(DATA_DIR);
-  fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
+  try{
+    ensureDir(DATA_DIR);
+    fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
+  }catch(e){ console.error('[writeJSON] 写入失败(可能是只读文件系统，已降级为不落盘)：', e.message); }
 }
 function shortHash(str){
   return crypto.createHash('sha1').update(str).digest('hex').slice(0, 10);
@@ -80,19 +86,21 @@ function countRows(csv){
   return csv.trim().split('\n').filter(l=>l.trim()).length - 1; // 减表头
 }
 function seedIntelIfNeeded(){
-  if(fs.existsSync(INTEL_FILE)) return;
-  const csv = extractBuiltinCsv();
-  const now = Date.now();
-  const obj = {
-    csv: csv,
-    updatedAt: now,
-    version: csv ? shortHash(csv) : 'empty',
-    count: countRows(csv),
-    seededFrom: csv ? 'builtin-html' : 'blank',
-    note: '首次启动自动从产品页内置 CSV 播种；此后以管理员上传为准。'
-  };
-  writeJSON(INTEL_FILE, obj);
-  console.log('[seed] 已用内置 CSV 播种情报数据：' + obj.count + ' 条');
+  try{
+    if(fs.existsSync(INTEL_FILE)) return;
+    const csv = extractBuiltinCsv();
+    const now = Date.now();
+    const obj = {
+      csv: csv,
+      updatedAt: now,
+      version: csv ? shortHash(csv) : 'empty',
+      count: countRows(csv),
+      seededFrom: csv ? 'builtin-html' : 'blank',
+      note: '首次启动自动从产品页内置 CSV 播种；此后以管理员上传为准。'
+    };
+    writeJSON(INTEL_FILE, obj);
+    console.log('[seed] 已用内置 CSV 播种情报数据：' + obj.count + ' 条');
+  }catch(e){ console.error('[seed] 播种失败(已忽略，情报接口将回退到实时内置 CSV)：', e.message); }
 }
 
 /* ---------- 反馈转发（Webhook / 日志） ---------- */
@@ -157,10 +165,13 @@ const server = http.createServer(async (req, res)=>{
       return;
     }
 
-    // 校招情报：公开读
+    // 校招情报：公开读（优先读落地文件；若缺失/未播种则实时从内置 CSV 回退，保证永远可响应）
     if(req.method === 'GET' && pathname === '/api/intel'){
-      const intel = readJSON(INTEL_FILE, null);
-      if(!intel){ return send(res, 404, { error:'intel not ready' }); }
+      let intel = readJSON(INTEL_FILE, null);
+      if(!intel){
+        const csv = extractBuiltinCsv();
+        intel = { csv, updatedAt: Date.now(), version: csv ? shortHash(csv) : 'empty', count: countRows(csv), seededFrom: 'builtin-live' };
+      }
       return send(res, 200, { csv: intel.csv, updatedAt: intel.updatedAt, version: intel.version, count: intel.count });
     }
 
