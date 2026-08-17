@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拿下 Nail It · 管理后台</title>
+<style>
+  :root{ --purple:#6d5efc; --purple2:#8b7bff; --ink:#1f2233; --ink2:#6b7080; --line:#e8e8f0; --bg:#f6f7fb; --ok:#1aa463; --err:#e0533d; --wait:#caa200; }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);padding:32px 16px}
+  .wrap{max-width:880px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--ink2);font-size:13px;margin-bottom:24px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:20px;box-shadow:0 4px 18px rgba(40,40,80,.04)}
+  .card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  .card h2 .ic{font-size:18px}
+  label{font-size:13px;color:var(--ink2);display:block;margin:12px 0 6px}
+  input[type=password],input[type=text],textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit}
+  textarea{resize:vertical;min-height:120px}
+  .btns{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button{cursor:pointer;border:0;border-radius:9px;padding:10px 16px;font-size:14px;font-weight:600;background:var(--purple);color:#fff}
+  button.ghost{background:#eef0fb;color:var(--purple)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .status{margin-top:12px;font-size:13px;padding:10px 12px;border-radius:9px;display:none}
+  .status.ok{display:block;background:#e9f8f0;color:var(--ok)}
+  .status.err{display:block;background:#fdecea;color:var(--err)}
+  .status.wait{display:block;background:#fff8e0;color:var(--wait)}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 4px;font-size:13px;color:var(--ink2)}
+  .meta b{color:var(--ink)}
+  .fb-item{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+  .fb-item .t{font-size:12px;color:var(--ink2)}
+  .fb-item .ver{display:inline-block;background:#eef0fb;color:var(--purple);font-size:11px;padding:1px 8px;border-radius:20px;margin-left:8px}
+  .fb-item .d{margin-top:6px;white-space:pre-wrap;word-break:break-word}
+  .fb-item .pg{margin-top:4px;font-size:12px;color:#888;word-break:break-all}
+  .fb-item .ct{margin-top:4px;font-size:12px;color:#557}
+  .hint{font-size:12px;color:var(--ink2);margin-top:6px}
+  code{background:#eef0fb;padding:1px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .note-box{background:#f6f7fb;border:1px dashed var(--line);border-radius:10px;padding:14px;font-size:13px;line-height:1.75}
+  .row{display:flex;gap:10px;align-items:center}
+  .row input[type=file]{flex:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>拿下 Nail It · 管理后台</h1>
+  <div class="sub">每天上传一次校招情报 CSV，所有用户端会自动同步并亮起「新」徽标；可在此查看用户反馈。</div>
+
+  <div class="card">
+    <h2><span class="ic">🔑</span>管理员密钥</h2>
+    <label>ADMIN_KEY（与后端启动时一致；默认 rfa-admin-2026）</label>
+    <input type="password" id="key" placeholder="输入 ADMIN_KEY" value="rfa-admin-2026">
+    <div class="hint">密钥仅保存在本次会话，不会上传到任何地方。也可在地址栏带 ?key=xxx 自动填入。</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="ic">📡</span>校招情报 · 上传 / 同步</h2>
+    <div class="meta" id="intelMeta"><span>当前状态：<b id="imState">未加载</b></span></div>
+    <label>1）选择一个 CSV 文件（表头需含：更新时间,公司,截止时间,企业类型,…，与内置格式一致）</label>
+    <div class="row">
+      <input type="file" id="csvFile" accept=".csv">
+      <button class="ghost" id="loadBtn">查看当前线上情报</button>
+    </div>
+    <label>2）或直接粘贴 CSV 文本</label>
+    <textarea id="csvText" placeholder="把 CSV 内容粘到这里（含表头第一行）"></textarea>
+    <div class="btns">
+      <button id="uploadBtn">⬆ 上传并更新（全员同步）</button>
+    </div>
+    <div class="status" id="intelStatus"></div>
+    <div class="hint">上传成功后：服务端 updatedAt 更新 → 用户端每 5 分钟（或切回标签页时）自动拉取 → 「校招情报」右侧出现「新」字，点进去查看后消失。</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="ic">📮</span>用户反馈</h2>
+    <div class="btns">
+      <button class="ghost" id="fbLoad">刷新反馈列表</button>
+      <span class="hint" id="fbCount"></span>
+    </div>
+    <div id="fbList" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="ic">🛠</span>给用户排查问题用的「隐藏诊断窗口」</h2>
+    <p class="hint" style="margin-top:0">这是给<strong>遇到问题的用户</strong>用的，不是你日常用的。你不用背操作步骤——记住下面这段话，将来直接复制发给用户就行：</p>
+    <div class="note-box">
+      <b>【转给用户的话】</b><br>
+      如果网页用着不对（比如填错了、白屏、某个功能没反应），请把「诊断包」发给我：<br>
+      ① 在网页地址的<strong>最后面</strong>加上 <code>?diag=1</code>（例：原本是 <code>…/our-plugin-web-v4-white.html</code>，改成 <code>…/our-plugin-web-v4-white.html?diag=1</code>）；<br>
+      ② 页面会多出一块「诊断」区域，点里面的 <b>「导出诊断包（.json）」</b> 按钮；<br>
+      ③ 把下载到的那个 <code>.json</code> 文件发给我即可。<br>
+      <span style="color:#888">（这个文件里只有：浏览器版本、网页版本、报错日志、你填过的数据快照，<b>不含任何密码</b>，可以放心发。）</span>
+    </div>
+    <div class="hint">另一种打开方式：在网页左上角的 logo（那个紫色 ✓）上<strong>快速连点 5 下</strong>，也能呼出同样那块「诊断」区域。</div>
+  </div>
+</div>
+
+<script>
+  const $ = s => document.querySelector(s);
+  const params = new URLSearchParams(location.search);
+  if(params.get('key')) $('#key').value = params.get('key');
+  function key(){ return $('#key').value.trim(); }
+  function setStatus(el, msg, cls){ el.textContent = msg; el.className = 'status ' + cls; }
+  function api(path, opts){ return fetch(path, opts); }
+
+  // 查看当前线上情报
+  $('#loadBtn').addEventListener('click', async ()=>{
+    const st = $('#intelStatus'); setStatus(st, '读取中…', 'wait');
+    try{
+      const r = await api('/api/intel'); const d = await r.json();
+      $('#imState').textContent = '已同步 · ' + (d.count||0) + ' 条 · 更新于 ' + new Date(Number(d.updatedAt)).toLocaleString('zh-CN') + ' · 版本 ' + d.version;
+      if(d.csv) $('#csvText').value = d.csv;
+      setStatus(st, '已读取当前线上情报，可直接在此基础上修改后重新上传。', 'ok');
+    }catch(e){ setStatus(st, '读取失败：' + e.message, 'err'); }
+  });
+
+  // 上传情报
+  $('#uploadBtn').addEventListener('click', async ()=>{
+    const st = $('#intelStatus'); const k = key();
+    if(!k){ setStatus(st, '请先填写 ADMIN_KEY', 'err'); return; }
+    let csv = $('#csvText').value.trim();
+    if(!csv && $('#csvFile').files[0]){
+      csv = await $('#csvFile').files[0].text();
+    }
+    if(!csv){ setStatus(st, '请选择 CSV 文件或粘贴 CSV 文本', 'err'); return; }
+    setStatus(st, '上传中…', 'wait');
+    try{
+      const r = await api('/api/intel/upload', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + k }, body: JSON.stringify({ csv }) });
+      const d = await r.json();
+      if(!r.ok){ setStatus(st, '上传失败：' + (d.error||r.status), 'err'); return; }
+      $('#imState').textContent = '已同步 · ' + (d.count||0) + ' 条 · 更新于 ' + new Date(Number(d.updatedAt)).toLocaleString('zh-CN') + ' · 版本 ' + d.version;
+      setStatus(st, '✅ 上传成功，全员将陆续收到「新」徽标。', 'ok');
+    }catch(e){ setStatus(st, '上传失败：' + e.message, 'err'); }
+  });
+
+  // 反馈列表
+  async function loadFeedback(){
+    const k = key(); const box = $('#fbList'); const cnt = $('#fbCount');
+    if(!k){ cnt.textContent = '填写密钥后点「刷新反馈列表」'; box.innerHTML=''; return; }
+    cnt.textContent = '读取中…';
+    try{
+      const r = await api('/api/feedback', { headers:{ 'Authorization':'Bearer ' + k } });
+      const d = await r.json();
+      if(!r.ok){ cnt.textContent = '读取失败：' + (d.error||r.status); return; }
+      cnt.textContent = '共 ' + (d.total||0) + ' 条';
+      if(!d.items || !d.items.length){ box.innerHTML = '<div class="hint">暂时没有反馈。</div>'; return; }
+      box.innerHTML = d.items.map(x=>(
+        '<div class="fb-item"><div class="t">'+esc(x.t||'')+'<span class="ver">'+(x.ver||'')+'</span></div>'+
+        (x.desc?('<div class="d">'+esc(x.desc)+'</div>'):'')+
+        (x.page?('<div class="pg">页面：'+esc(x.page)+'</div>'):'')+
+        (x.contact?('<div class="ct">联系方式：'+esc(x.contact)+'</div>'):'')+
+        '</div>'
+      )).join('');
+    }catch(e){ cnt.textContent = '读取失败：' + e.message; }
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  $('#fbLoad').addEventListener('click', loadFeedback);
+
+  // 进页面自动尝试拉一次情报状态
+  $('#loadBtn').click();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "nailit-backend",
+  "version": "1.0.0",
+  "description": "拿下 Nail It 极简后端：校招情报云同步 + 问题反馈接收",
+  "main": "intel-server.js",
+  "scripts": {
+    "start": "node intel-server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "private": true
+}

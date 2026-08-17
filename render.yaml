@@ -1,0 +1,17 @@
+# Render Blueprint：在 Render 控制台点一次「New → Blueprint → 选本仓库」即可部署
+# 部署后请在 Render 的 Environment 里把 ADMIN_KEY 设成你自己的强随机串。
+services:
+  - type: web
+    name: get-offer-web
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: oregon
+    buildCommand: "true"
+    startCommand: "node intel-server.js"
+    healthCheckPath: /api/health
+    envVars:
+      - key: ADMIN_KEY
+        sync: false
+      - key: PORT
+        sync: false
