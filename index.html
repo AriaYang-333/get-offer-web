@@ -2753,7 +2753,7 @@ function renderProfile(){
   });
   col.innerHTML = html;
   col.classList.remove('ver-anim'); void col.offsetWidth; col.classList.add('ver-anim');
-  refreshMissBadges();   // 渲染后立即统计各板块未填处数，左侧导航黄圈徽标自动出现（此前只在点按钮/输入时才刷新，打开页面看不到标黄）
+  if(typeof refreshMissBadges==='function'){ try{ refreshMissBadges(); }catch(e){} }   // 渲染后统计未填徽标；首次渲染时函数在第二个脚本块尚未定义则跳过，加载完成后由第二个脚本块补统计
   col.querySelectorAll('.sel[data-type]').forEach(syncLangFree);
   restoreFiles();
 }
@@ -3772,6 +3772,8 @@ document.addEventListener('click', e=>{
     }
   }
   if(missBtn) missBtn.addEventListener('click', runMissCheck);
+  // 页面加载完成（本脚本块已执行、所有函数已定义）：自动统计一次各板块未填徽标（补上 renderProfile 首次渲染时因跨脚本块跳过的统计）
+  try{ refreshMissBadges(); }catch(e){}
   // 黄色边框 + 左侧黄圈：仅当用户真正编辑（输入）该字段时才消除——不是滚动/点击时
   if(blocksCol) blocksCol.addEventListener('input', e=>{
     const el=e.target.closest('.cv-in, .cv-ta, .txt-in');
