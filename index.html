@@ -741,8 +741,8 @@
         <span class="vs-label">简历版本</span>
         <div class="ver-list" id="verList"></div>
         <button type="button" class="vs-add" id="verAdd">＋ 新增版本</button>
-        <button type="button" class="vs-reset" id="verReset" title="恢复默认的「运营版 / 产品版 / 技术版」三套演示档案">↺ 重置演示</button>
-        <span class="vs-hint">默认提供「运营版 / 产品版 / 技术版」三套差异化档案（同一人、不同侧重）；右键版本名可重命名；「＋ 新增版本」会复制当前版本的全部档案并独立保存——切换版本时下方 19 类档案（基本信息 / 实习 / 项目 / 求职意向 / 技能 / 自我评价…）整体换为该版本的数据，各版本互不串味，刷新页面也保留。</span>
+        <button type="button" class="vs-reset" id="verReset" title="恢复默认的「运营版 / 产品版 / 技术版」三套空白模板">↺ 重置空白</button>
+        <span class="vs-hint">默认提供「运营版 / 产品版 / 技术版」三套空白模板（不同侧重）；右键版本名可重命名；「＋ 新增版本」会复制当前版本的全部档案并独立保存——切换版本时下方 19 类档案（基本信息 / 实习 / 项目 / 求职意向 / 技能 / 自我评价…）整体换为该版本的数据，各版本互不串味，刷新页面也保留。</span>
       </div>
 
       <!-- 详细文档（并入档案确认：上传/粘贴后解析为下方 19 类档案） -->
@@ -820,9 +820,9 @@
 
         <div class="ai-card">
           <div class="ai-card-h"><span class="bn">🧹</span> 数据管理</div>
-          <div class="ai-card-sub">「从零开始」：清空本地所有数据后重新录入，或一键恢复演示用的三套默认档案。</div>
+          <div class="ai-card-sub">「从零开始」：清空本地所有数据后重新录入，或一键恢复三套空白模板。</div>
           <div class="ai-actions">
-            <button type="button" class="rfa-btn ghost" id="aiResetDemo">↺ 重置演示档案</button>
+            <button type="button" class="rfa-btn ghost" id="aiResetDemo">↺ 重置空白模板</button>
             <button type="button" class="rfa-btn danger" id="aiWipe">🗑 一键清除全部本地数据</button>
           </div>
           <div class="ai-card-note warn">⚠️ 一键清除将删除：档案三版本、投递记录、校招情报缓存、API 设置与所有偏好标记，<b>不可恢复</b>。建议先做整包备份（数据同步）。</div>
@@ -2110,75 +2110,16 @@ const D = {
 function cloneD(){ return JSON.parse(JSON.stringify(D)); }
 function buildVariant(kind){ return cloneD(); }
 function seedDemo(){
+  // 空白模板：不预填任何个人真实数据，访客自行录入；仅保留「运营版 / 产品版 / 技术版」三套空壳
   const mk = function(){
     const v = cloneD(); v.resumePDF = '';
+    v.basic = {}; v.intent = {}; v.selfEval = '';
     return v;
   };
-  const basic = {
-    姓名:'杨焰柳', 性别:'女',
-    现居城市:'四川省成都市', 国家地区:'中国大陆'
-  };
-  const edu = [{
-    学校:'四川传媒学院', 专业:'广播电视编导', 学历:'本科', 学习形式:'全日制',
-    开始时间:'2023.09.01', 结束时间:'2027.06.30'
-  }];
-  const getOffer = {
-    名称:'Get Offer 校招网申助手（开源产品）', 岗位:'产品负责人',
-    描述:'用 AI 协作从 0 到 1 打造的智能求职效率产品：Word 简历解析 + 多家大厂招聘官网深度适配自动填充 + 未填字段标黄查漏 + 投递记录追踪。',
-    职责:'需求判断、竞品研究、产品结构、UI 方向、字段规则、测试验收；AI 协作完成代码与界面。',
-    成果:'已真机适配 8 家大厂招聘官网（腾讯/字节/美团/京东/大疆/安踏/蔚来/小鹏），GitHub 开源发布。',
-    链接:'https://github.com/AriaYang-333/qiuzhao-autofill'
-  };
-  const aiSkills = {
-    tools:'Claude、ChatGPT、Midjourney、剪映、豆包、公众号排版',
-    collab:'用 AI 搭建选题-脚本-多平台分发的自动化内容工作流，AI 负责初稿与重复剪辑，我做选题判断、人设把控与数据复盘。'
-  };
-  const ops = mk();
-  Object.assign(ops.basic, basic, { 政治面貌:'' });
-  ops.educations = edu;
-  ops.intent = { 目标岗位:'AI 内容运营 / AIGC 内容创作', 期望城市:'成都、北京、上海、杭州' };
-  ops.internships = [
-    { 公司:'携程', 职务:'AI 社媒运营实习生', 工作类型:'实习', 开始时间:'', 结束时间:'', 描述:'负责 AI 客服视频项目：Prompt 撰写 + 分镜 + A/B 测试。', 职责:'', 成果:'' },
-    { 公司:'网易', 职务:'新媒体运营实习生', 工作类型:'实习', 开始时间:'', 结束时间:'', 描述:'负责新媒体内容策划与运营。', 职责:'', 成果:'' }
-  ];
-  ops.projects = [getOffer];
-  ops.aiSkills = aiSkills;
-  ops.skills = { 框架库:'', 工具平台:'剪映、Premiere、公众号排版、小红书运营、Excel' };
-  ops.devLang = { '擅长的开发语言':'' };
-  ops.selfEval = '懂内容、会运营、能用 AI 提效、有数据结果的内容运营新人。';
-
-  const prod = mk();
-  Object.assign(prod.basic, basic, { 政治面貌:'' });
-  prod.educations = edu;
-  prod.intent = { 目标岗位:'AI 产品运营（内容侧）', 期望城市:'成都、北京、上海' };
-  prod.internships = [
-    { 公司:'携程', 职务:'AI 产品运营实习生', 工作类型:'实习', 开始时间:'', 结束时间:'', 描述:'AI 客服视频项目：Prompt 撰写 + 分镜 + A/B 测试，有数据结果。', 职责:'', 成果:'' },
-    { 公司:'全日商', 职务:'内容电商运营（小红书）', 工作类型:'实习', 开始时间:'', 结束时间:'', 描述:'小红书内容电商运营。', 职责:'', 成果:'' }
-  ];
-  prod.projects = [Object.assign({}, getOffer, { 职责:'产品定义 + 需求文档 + 数据闭环；AI 协作开发。' })];
-  prod.aiSkills = aiSkills;
-  prod.skills = { 框架库:'', 工具平台:'飞书、Notion、Excel、PPT、数据分析' };
-  prod.devLang = { '擅长的开发语言':'' };
-  prod.selfEval = '有产品思维的内容运营：能把用户需求变成产品方案，用数据验证结果。';
-
-  const tech = mk();
-  Object.assign(tech.basic, basic, { 政治面貌:'' });
-  tech.educations = edu;
-  tech.intent = { 目标岗位:'AI 产品 / 内容工具方向', 期望城市:'成都、北京、深圳' };
-  tech.internships = [
-    { 公司:'美尔贝', 职务:'创始人 IP 运营', 工作类型:'实习', 开始时间:'', 结束时间:'', 描述:'创始人 IP 内容与运营。', 职责:'', 成果:'' },
-    { 公司:'携程', 职务:'AI 社媒运营实习生', 工作类型:'实习', 开始时间:'', 结束时间:'', 描述:'AI 客服视频项目：Prompt + 分镜 + A/B 测试。', 职责:'', 成果:'' }
-  ];
-  tech.projects = [Object.assign({}, getOffer, { 岗位:'产品负责人 / 核心开发', 描述:'用 AI 协作从 0 到 1 打造开源智能求职效率产品（规则引擎 + DOM 识别 + 多 ATS 适配）。' })];
-  tech.aiSkills = aiSkills;
-  tech.skills = { 框架库:'', 工具平台:'Claude、ChatGPT、Git、GitHub、剪映、Premiere' };
-  tech.devLang = { '擅长的开发语言':'' };
-  tech.selfEval = '能用 AI 工具链完成从内容到产品的交付，善于学习新技术。';
-
   return [
-    { id:'v-ops',  name:'运营版', note:'侧重 内容运营 / AIGC', fixed:true,  data: ops },
-    { id:'v-prod', name:'产品版', note:'侧重 AI 产品运营', fixed:true,  data: prod },
-    { id:'v-tech', name:'技术版', note:'侧重 AI 工具 / 产品', fixed:true,  data: tech }
+    { id:'v-ops',  name:'运营版', note:'侧重 内容运营 / AIGC', fixed:true,  data: mk() },
+    { id:'v-prod', name:'产品版', note:'侧重 AI 产品运营', fixed:true,  data: mk() },
+    { id:'v-tech', name:'技术版', note:'侧重 AI 工具 / 产品', fixed:true,  data: mk() }
   ];
 }
 
@@ -2581,11 +2522,11 @@ function deepRepair(saved, demo){
   let loaded=null;
   try{ loaded = achParse(); }catch(e){ loaded=null; }
   function achParse(){ try{ return JSON.parse(localStorage.getItem('rfa_versions_v2')||'null'); }catch(e){ return null; } }
-  // 自动清洗旧测试数据（2026-08-19）：本地残留过「林清越」demo 档案时强制清除，
-  // 让页面回到 3 个空白版本（运营版/产品版/技术版）。用户正常编辑的数据不受影响。
+  // 自动清洗旧测试数据：本地残留过「林清越」或本人真实档案（杨焰柳/四川传媒学院/Get Offer 项目）
+  // 时强制清除，让页面回到 3 个空白版本（运营版/产品版/技术版）。用户正常编辑的数据不受影响。
   try{
     const raw = localStorage.getItem('rfa_versions_v2') || '';
-    if(/林清越|linqingyue|13800001234/.test(raw)){
+    if(/林清越|linqingyue|13800001234|杨焰柳|四川传媒学院|Get Offer 校招网申助手|AriaYang/.test(raw)){
       localStorage.removeItem('rfa_versions_v2');
       localStorage.removeItem('rfa_last_sync');
     }
@@ -3446,12 +3387,12 @@ document.addEventListener('click', e=>{
       toast('AI 设置已保存（仅存于本浏览器）');
     }catch(_){ toast('保存失败：浏览器存储不可用'); }
   });
-  // 重置演示档案
+  // 重置空白模板
   const aiResetDemo=$('aiResetDemo');
   if(aiResetDemo) aiResetDemo.addEventListener('click',()=>{
     rfaClearAll();
     versions=seedDemo(); verCur=0; renderProfile(); renderVers(); renderResume(); persist();
-    toast('已重置为「运营版 / 产品版 / 技术版」三套演示档案');
+    toast('已重置为「运营版 / 产品版 / 技术版」三套空白模板');
   });
   // 一键清除全部本地数据（二次确认）
   const aiWipe=$('aiWipe');
@@ -3758,7 +3699,7 @@ document.addEventListener('click', e=>{
   renderVers();
   const verReset=$('verReset');
   if(verReset) verReset.addEventListener('click',()=>{
-    if(!confirm('恢复默认的「运营版 / 产品版 / 技术版」三套演示档案？\n当前所有自定义版本与编辑将被覆盖。')) return;
+    if(!confirm('恢复默认的「运营版 / 产品版 / 技术版」三套空白模板？\n当前所有自定义版本与编辑将被覆盖。')) return;
     versions = seedDemo(); verCur=0; renderProfile(); renderVers(); renderResume(); persist(); window.syncVersionsToPluginNow();
   });
 
