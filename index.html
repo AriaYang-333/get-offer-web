@@ -201,6 +201,8 @@
   .cv-in:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(108,74,247,.12)}
   .cv-ta{width:100%;min-height:96px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;resize:vertical;box-sizing:border-box;line-height:1.7;transition:.13s}
   .cv-ta:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(108,74,247,.12)}
+  /* 标黄查漏：未填输入框黄框标记（点「🟡 标黄查漏」圈黄，填写后自动消黄；温和黄框，不整屏高亮） */
+  .cv-in.missed,.cv-ta.missed,.txt-in.missed{border-color:#f5c518;background:#fffbe8;box-shadow:0 0 0 3px rgba(245,197,24,.16)}
   /* 板块提示小字 */
   .bnote{font-size:11.5px;color:var(--ink2);background:#f7f8fc;border:1px solid var(--line);border-radius:8px;padding:7px 11px;margin-bottom:12px;line-height:1.6}
   /* 区块右侧说明面板（作品集等） */
@@ -361,7 +363,7 @@
   .miss-btn:hover{background:#fff7df;border-color:#e0b400}
   .miss-btn:active{background:#fff0c2}
   .miss-flag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:20px;background:#fff4e8;color:#c4690a;border:1px solid #f3d9b6;margin-left:8px;vertical-align:middle}
-  /* 标黄查漏的黄框已停用（用户反馈满屏黄光+自动跳转看不清），仅保留左侧导航数字徽标计数 */
+  /* 标黄查漏：点「🟡 标黄查漏」给未填输入框刷温和黄框（点一次圈、再点取消、填写即消），并同步左侧导航数字徽标；不自动滚动跳转 */
 
   /* ===== 多简历版本切换 ===== */
   .ver-switch{display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap;max-width:1100px;margin-left:auto;margin-right:auto}
@@ -3752,15 +3754,22 @@ document.addEventListener('click', e=>{
       }
     });
   }
-  // 真正的查漏逻辑：按钮点击调用。仅做左侧导航数字徽标计数 + 按钮文案，不再给字段刷黄框、不再自动滚动跳转（避免满屏黄光+页面跳动看不清）
+  // 真正的查漏逻辑：按钮点击调用。给未填字段刷黄框（点一次圈黄、再点取消，填写即消黄），并刷新左侧导航数字徽标；不再自动滚动跳转（避免页面跳动看不清）
   function runMissCheck(){
     let n=0;
-    document.querySelectorAll('#blocksCol .cv-in, #blocksCol .cv-ta, #blocksCol .txt-in').forEach(el=>{
-      if(el.value==='' || el.value==null) n++;
+    const els=document.querySelectorAll('#blocksCol .cv-in, #blocksCol .cv-ta, #blocksCol .txt-in');
+    const on = missBtn ? missBtn.dataset.on==='1' : false;   // 当前是否处于"已圈黄"状态
+    els.forEach(el=>{
+      const empty=(el.value==='' || el.value==null);
+      if(empty) n++;
+      if(on){ el.classList.remove('missed'); }          // 取消圈黄：全部移除
+      else if(empty){ el.classList.add('missed'); }     // 圈黄：只给未填的加
     });
     refreshMissBadges();
-    if(missBtn) missBtn.textContent = n? ('未填 '+n+' 处') : '✓ 无未填项';
-    if(missBtn) setTimeout(()=>{ missBtn.textContent='🟡 标黄查漏'; }, 2200);
+    if(missBtn){
+      if(on){ missBtn.dataset.on='0'; missBtn.textContent='🟡 标黄查漏'; }
+      else { missBtn.dataset.on='1'; missBtn.textContent = n? ('🟡 已标黄 '+n+' 处 · 再点取消') : '✓ 无未填项'; }
+    }
   }
   if(missBtn) missBtn.addEventListener('click', runMissCheck);
   // 黄色边框 + 左侧黄圈：仅当用户真正编辑（输入）该字段时才消除——不是滚动/点击时
