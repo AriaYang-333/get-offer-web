@@ -2518,24 +2518,27 @@ function deepRepair(saved, demo){
   }
   return saved;
 }
+const DATA_SCHEMA = 'v4b-20260820';
 (function initVersions(){
+  // 用 schema 版本号区分「我们的旧测试数据」与「用户正常填写的数据」，
+  // 不再用「用户本人真实姓名/学校」等做字面匹配（会误清空用户自己填的简历）。
+  let raw='';
+  try{ if(typeof DATA_SCHEMA==='undefined'){} }catch(e){}
+  try{ raw = localStorage.getItem('rfa_versions_v2') || ''; }catch(e){}
+  const schemaOk = (function(){ try{ return localStorage.getItem('rfa_schema')===DATA_SCHEMA; }catch(e){ return false; } })();
+  const hasTestMarker = /林清越|linqingyue|13800001234|Get Offer 校招网申助手|rfa-demo-seed/.test(raw);
+  const dirty = !schemaOk || hasTestMarker;
+  // 命中旧/测试数据 → 丢弃内存解析结果，强制回到空白模板；未命中才用本地数据
   let loaded=null;
-  try{ loaded = achParse(); }catch(e){ loaded=null; }
-  function achParse(){ try{ return JSON.parse(localStorage.getItem('rfa_versions_v2')||'null'); }catch(e){ return null; } }
-  // 自动清洗旧测试数据：本地残留过「林清越」或本人真实档案（杨焰柳/四川传媒学院/Get Offer 项目）
-  // 时强制清除，让页面回到 3 个空白版本（运营版/产品版/技术版）。用户正常编辑的数据不受影响。
-  try{
-    const raw = localStorage.getItem('rfa_versions_v2') || '';
-    if(/林清越|linqingyue|13800001234|杨焰柳|四川传媒学院|Get Offer 校招网申助手|AriaYang/.test(raw)){
-      localStorage.removeItem('rfa_versions_v2');
-      localStorage.removeItem('rfa_last_sync');
-    }
-  }catch(e){}
+  if(!dirty){ try{ loaded = JSON.parse(raw||'null'); }catch(e){ loaded=null; } }
+  if(dirty){ try{ localStorage.removeItem('rfa_versions_v2'); localStorage.removeItem('rfa_last_sync'); }catch(e){} }
   if(loaded && Array.isArray(loaded) && loaded.length && loaded[0] && loaded[0].data && typeof loaded[0].data==='object'){
     versions = loaded; verCur = 0;
   } else {
     versions = seedDemo(); verCur = 0;
   }
+  // 兜底：命中旧数据走的是空白模板，立即持久化空白 + 写 schema，杜绝下次刷新又读到残留旧数据
+  try{ if(dirty){ localStorage.setItem('rfa_versions_v2', JSON.stringify(versions)); localStorage.setItem('rfa_schema', DATA_SCHEMA); } }catch(e){}
   // 自动修复：用三套 demo 默认值补齐各版本残缺（空）字段，避免旧本地数据导致同步出去不全
   try{
     const demo = seedDemo();
@@ -2607,7 +2610,7 @@ function captureDom(){
   return out;
 }
 let _pt=null;
-function persist(){ try{ localStorage.setItem('rfa_versions_v2', JSON.stringify(versions)); }catch(e){} }
+function persist(){ try{ localStorage.setItem('rfa_versions_v2', JSON.stringify(versions)); localStorage.setItem('rfa_schema', DATA_SCHEMA); }catch(e){} }
 function schedulePersist(){ if(_pt) clearTimeout(_pt); _pt=setTimeout(()=>{ saveCurrent(); try{ if(autoSyncOn() && window.pushToPlugin){ window.pushToPlugin(); if(window.pushVersionsToPlugin) window.pushVersionsToPlugin(); } }catch(e){} }, 500); }
 function autoSyncOn(){ try{ return localStorage.getItem('rfa_auto_sync')!=='0'; }catch(e){ return true; } }
 function saveCurrent(){ try{ versions[verCur].data = captureDom(); persist(); }catch(e){} }
@@ -3923,6 +3926,7 @@ document.addEventListener('click', e=>{
     try{ if(d.applied) localStorage.setItem('rfa_applied', JSON.stringify(d.applied)); }catch(e){}
     try{ if(typeof d.jobCsv==='string') localStorage.setItem('rfa_job_csv', d.jobCsv); }catch(e){}
     const gv=id=>document.getElementById(id);
+    try{ localStorage.setItem('rfa_schema', DATA_SCHEMA); }catch(e){}
     if(d.ai){ const set=(id,v)=>{ const e=gv(id); if(e&&v!=null) e.value=v; };
       set('aiProvider',d.ai.provider); set('aiKey',d.ai.key); set('aiBase',d.ai.base); set('aiModel',d.ai.model);
       try{ localStorage.setItem('aiProvider',d.ai.provider||''); localStorage.setItem('aiKey',d.ai.key||''); localStorage.setItem('aiBase',d.ai.base||''); localStorage.setItem('aiModel',d.ai.model||''); }catch(e){} }
