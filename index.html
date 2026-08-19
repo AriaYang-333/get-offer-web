@@ -2110,10 +2110,22 @@ const D = {
 function cloneD(){ return JSON.parse(JSON.stringify(D)); }
 function buildVariant(kind){ return cloneD(); }
 function seedDemo(){
-  // 空白模板：不预填任何个人真实数据，访客自行录入；仅保留「运营版 / 产品版 / 技术版」三套空壳
+  // 空白模板：不预填任何个人真实数据；但每个板块预置一张空白卡片，
+  // 打开即见「可填」状态，不再光秃秃。空白卡片 = 空对象 {}（渲染器对空对象安全）。
   const mk = function(){
     const v = cloneD(); v.resumePDF = '';
     v.basic = {}; v.intent = {}; v.selfEval = '';
+    // 各板块预置一张空白卡片
+    v.educations   = [{}];
+    v.internships  = [{}];
+    v.projects     = [{}];
+    v.campus       = [{}];
+    v.portfolio    = [{}];
+    v.awards       = [{}];
+    v.languages    = [{}];
+    v.certificates = [{}];
+    v.papers       = [{}];
+    v.competitions = [{}];
     return v;
   };
   return [
@@ -2507,7 +2519,11 @@ function deepRepair(saved, demo){
   if(saved==null || saved==='') return (demo===undefined? '' : demo);
   if(Array.isArray(demo)){
     if(!Array.isArray(saved)) return JSON.parse(JSON.stringify(demo));
-    return demo.map((d,i)=> saved[i]!=null ? deepRepair(saved[i], d) : (d===undefined? d : JSON.parse(JSON.stringify(d))));
+    // 保留本地所有条目（不丢数据）：逐条用 demo 同位置/首位模板修复；
+    // 若 demo 比本地长（如本地为空时预置的空白卡片），补齐尾部空白。
+    const out = saved.map((s,i)=> deepRepair(s, demo[i]!==undefined ? demo[i] : (demo[0]!==undefined ? demo[0] : undefined)));
+    for(let i=saved.length; i<demo.length; i++){ out.push(JSON.parse(JSON.stringify(demo[i]))); }
+    return out;
   }
   if(demo && typeof demo==='object'){
     if(!saved || typeof saved!=='object') return JSON.parse(JSON.stringify(demo));
