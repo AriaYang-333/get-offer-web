@@ -47,7 +47,7 @@
   .vitem:hover{background:#f1f0ff;color:var(--purple)}
   .vitem.on{background:var(--purple);color:#fff}
   /* 标黄查漏：左侧导航缺失项黄圈徽标（显示该板块未填处数） */
-  .vitem .vmiss{margin-left:auto;min-width:18px;height:18px;border-radius:9px;background:#b9bdc9;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 0 0 2px rgba(120,124,140,.18)}
+  .vitem .vmiss{margin-left:auto;min-width:18px;height:18px;border-radius:9px;background:#ffd56b;color:#6a4a00;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 0 0 2px rgba(255,213,107,.35)}
   /* 左侧「同步到插件」模块：已缩小为红色小卡片（钉在基本信息上方，随页面滚动一起跟随） */
   .subnav-sync{background:linear-gradient(180deg,#fff6f6,#ffecec);border:1.5px solid #ff7070;border-radius:10px;padding:9px;margin-bottom:10px;position:sticky;top:0;z-index:3}
   .subnav-sync .ss-h{font-size:11px;font-weight:800;color:#a01515;margin-bottom:6px;text-align:center;letter-spacing:.3px}
@@ -2751,6 +2751,7 @@ function renderProfile(){
   });
   col.innerHTML = html;
   col.classList.remove('ver-anim'); void col.offsetWidth; col.classList.add('ver-anim');
+  refreshMissBadges();   // 渲染后立即统计各板块未填处数，左侧导航黄圈徽标自动出现（此前只在点按钮/输入时才刷新，打开页面看不到标黄）
   col.querySelectorAll('.sel[data-type]').forEach(syncLangFree);
   restoreFiles();
 }
