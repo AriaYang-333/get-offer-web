@@ -3687,8 +3687,12 @@ document.addEventListener('click', e=>{
       const rows=[...tbl.querySelectorAll('.tk-row')].filter(r=>r.querySelector('.tk-chk').checked);
       const links=rows.map(r=>{ const a=r.querySelector('td[data-col="简历投递链接"] a.cell-link'); return a?a.getAttribute('href'):''; }).filter(Boolean);
       if(!links.length){ alert('请先勾选至少一家公司的「简历投递链接」'); return; }
-      // 不用 confirm：确认框会打断浏览器对「用户点击手势」的信任，导致多个 window.open 被弹窗拦截只开第一个
-      links.forEach(u=>window.open(u,'_blank','noopener'));
+      // 不用 confirm，也避开 window.open 被浏览器弹窗拦截：用「模拟点击 <a target=_blank>」批量打开（原生链接不受弹窗拦截限制）
+      links.forEach(u=>{
+        const a=document.createElement('a');
+        a.href=u; a.target='_blank'; a.rel='noopener';
+        document.body.appendChild(a); a.click(); a.remove();
+      });
     });
     syncDaySel(part);
   });
@@ -4588,7 +4592,8 @@ document.addEventListener('click', e=>{
     const tables = kind==='job'?jobTables():[$('#rfaTrackTable')].filter(Boolean);
     tables.forEach(tbl=>{
       const dp=tbl.closest('.day-part'); const day = kind==='job' ? (dp?dp.dataset.day:'all') : 'all';
-      const rows=data.filter(r=>matchRow(kind,r) && (kind!=='job'||dayPartFilter(day,r)));
+      let rows=data.filter(r=>matchRow(kind,r) && (kind!=='job'||dayPartFilter(day,r)));
+      if(kind==='job'){ const k=dateColKey(); rows.sort((a,b)=>{ const da=normalizeDate(a[k]), db=normalizeDate(b[k]); if(da&&db) return da===db?0:(da<db?1:-1); if(da) return -1; if(db) return 1; return 0; }); } // 情报库按更新时间倒序：最新批次永远在最上面（用户 08-20：全部情报库找不到最新 8-19）
       const emptyMsg = kind==='track' ? '还没有投递记录 —— 点「＋ 手动添加」或导入 CSV 开始记录' : '该时段暂无更新 · 导入最新 CSV 后将自动出现';
       const body = rows.length ? rows.map(r=>rowHTML(kind,r)).join('') : '<tr><td colspan="'+(cols.length + (kind==='job'?1:0))+'" style="text-align:center;color:var(--muted);padding:18px 10px">'+emptyMsg+'</td></tr>';
       tbl.innerHTML = headerHTML(cols,kind,st) + '<tbody>'+body+'</tbody>';
@@ -4605,7 +4610,8 @@ document.addEventListener('click', e=>{
     if(!tables.length) return;
     tables.forEach(tbl=>{
       const dp=tbl.closest('.day-part'); const day = kind==='job' ? (dp?dp.dataset.day:'all') : 'all';
-      const rows=data.filter(r=>matchRow(kind,r) && (kind!=='job'||dayPartFilter(day,r)));
+      let rows=data.filter(r=>matchRow(kind,r) && (kind!=='job'||dayPartFilter(day,r)));
+      if(kind==='job'){ const k=dateColKey(); rows.sort((a,b)=>{ const da=normalizeDate(a[k]), db=normalizeDate(b[k]); if(da&&db) return da===db?0:(da<db?1:-1); if(da) return -1; if(db) return 1; return 0; }); } // 情报库按更新时间倒序：最新批次永远在最上面（用户 08-20：全部情报库找不到最新 8-19）
       const tb=tbl.querySelector('tbody'); if(!tb) return;
       const span = (kind==='job'?JOB_COLS.length:TRACK_COLS.length) + (kind==='job'?1:0);
       tb.innerHTML = rows.length ? rows.map(r=>rowHTML(kind,r)).join('') : '<tr><td colspan="'+span+'" style="text-align:center;color:var(--muted);padding:18px 10px">'+(kind==='track'?'还没有投递记录 —— 点「＋ 手动添加」或导入 CSV 开始记录':'该时段暂无更新 · 导入最新 CSV 后将自动出现')+'</td></tr>';
