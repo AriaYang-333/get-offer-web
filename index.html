@@ -2573,8 +2573,13 @@ const DATA_SCHEMA = 'v4b-20260820';
   versions.forEach(v=>{ if(v && v.data) v.data.resumePDF = v.data.resumePDF||''; });
   renderResume();
   // 加载完自动把版本列表同步到插件（网页↔插件对齐，无需手动点同步按钮）
+  // ⚠️ 仅当档案里有真实内容时才自动同步：空白模板（用户还没填）不覆盖插件已有数据，
+  //    否则每次打开网页都会把插件里已同步的档案冲成空白（08-20 用户反馈放大面板被冲空）。
   setTimeout(function(){
-    try{ if(window.syncVersionsToPluginNow) window.syncVersionsToPluginNow(); }catch(e){}
+    try{
+      const hasReal = (window.hasRealData && window.hasRealData());
+      if(hasReal && window.syncVersionsToPluginNow) window.syncVersionsToPluginNow();
+    }catch(e){}
   }, 1200);
 })();
 const BLOCK_SRC = { b1:'basic', b2:'educations', b3:'internships', b4:'projects', b5:'campus', b6:'portfolio', b7:'awards', b8:'languages', b9:'social', b10:'certificates', b11:'papers', b12:'patent', b13:'competitions', b14:'skills', b15:'intent', b16:'reference', b17:'aiSkills', b18:'devLang', b19:'selfEval' };
@@ -3589,6 +3594,23 @@ document.addEventListener('click', e=>{
       try{ if(window.pushVersionsToPlugin) window.pushVersionsToPlugin(); }catch(e){}
     }
     window.syncVersionsToPluginNow = syncVersionsToPluginNow;
+    // 判断当前 3 个版本里是否有「真实内容」：任一版本的基本信息/自我评价有值，或任一数组板块有非空卡片 → true
+    // 用途：页面加载自动同步时，空白模板不覆盖插件已有档案（见 initVersions 末尾 setTimeout 调用处）
+    function hasRealData(){
+      try{
+        return (window.versions||[]).some(function(v){
+          const d=(v&&v.data)||{}; if(!d) return false;
+          if(d.basic && Object.keys(d.basic).some(function(k){ return String(d.basic[k]||'').trim()!==''; })) return true;
+          if(d.selfEval && String(d.selfEval).trim()!=='') return true;
+          const arrs=['educations','internships','projects','campus','portfolio','awards','languages','certificates','papers','competitions','social','patent'];
+          return arrs.some(function(k){
+            if(!Array.isArray(d[k])) return false;
+            return d[k].some(function(o){ return o && Object.keys(o).some(function(f){ return String(o[f]||'').trim()!==''; }); });
+          });
+        });
+      }catch(e){ return true; } // 判断异常时保守同步
+    }
+    window.hasRealData = hasRealData;
     const extIdEl = document.getElementById('extId'), autoEl = document.getElementById('autoSync');
     function applyExtId(id){ if(!id) return; try{ localStorage.setItem('rfa_ext_id', id); }catch(e){} if(extIdEl) extIdEl.value = id; }
     try{
