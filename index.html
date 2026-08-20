@@ -399,6 +399,8 @@
   .tk-cell{width:36px;text-align:center;background:#fbfaff}
   .tk-h{width:36px;text-align:center;font-weight:800;color:var(--ink);background:#fbfaff}
   .tk-row.sel{background:#f3f0ff}
+  .tk-row.seling{background:#e9e3ff}
+  .sel-box{position:fixed;z-index:9999;border:1.5px solid var(--purple);background:rgba(124,92,255,.12);pointer-events:none}
   .today-table{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border-radius:8px;overflow:hidden}
   .today-table th,.today-table td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;font-size:12px;color:var(--ink2);vertical-align:middle;white-space:nowrap}
   .today-table th{background:#f0edff;font-weight:800;color:var(--ink);font-size:13.5px;letter-spacing:.2px}
@@ -2008,16 +2010,18 @@
   </div>
   <div class="rfa-hint"><b>怎么搜</b>：同校招情报。列头可精确筛选（招聘类型 / 地点 / 最新状态为下拉；投递时间为日期区间）；搜索框接 DeepSeek 自然语言语义搜索（无 Key 时本地智能匹配）。公司名输入框输入时会联想已有公司。</div>
   <div class="track-stats">
-    <div class="tstat"><div class="tstat-n tstat-purple">15</div><div class="tstat-t">总计投递</div></div>
-    <div class="tstat"><div class="tstat-n tstat-blue">5</div><div class="tstat-t">进行中</div></div>
-    <div class="tstat"><div class="tstat-n tstat-amber">6</div><div class="tstat-t">面试中</div></div>
-    <div class="tstat"><div class="tstat-n tstat-green">2</div><div class="tstat-t">已拿 offer</div></div>
-    <div class="tstat"><div class="tstat-n tstat-red">2</div><div class="tstat-t">未通过</div></div>
+    <div class="tstat"><div class="tstat-n tstat-purple" data-stat="total">0</div><div class="tstat-t">总计投递</div></div>
+    <div class="tstat"><div class="tstat-n tstat-blue" data-stat="ongoing">0</div><div class="tstat-t">进行中</div></div>
+    <div class="tstat"><div class="tstat-n tstat-amber" data-stat="interview">0</div><div class="tstat-t">面试中</div></div>
+    <div class="tstat"><div class="tstat-n tstat-green" data-stat="offer">0</div><div class="tstat-t">已拿 offer</div></div>
+    <div class="tstat"><div class="tstat-n tstat-red" data-stat="reject">0</div><div class="tstat-t">未通过</div></div>
   </div>
   <div class="track-topbar">
     <span class="rfa-count" id="rfaTrackCount"></span>
+    <button type="button" class="rfa-btn" id="trackAddBtn" title="添加一条新的投递记录">＋ 手动添加</button>
     <button type="button" class="rfa-btn ghost icon-only" id="rfaTrackReset" title="查看全部">↺</button>
   </div>
+  <div class="rfa-hint" id="trackEmptyGuide" style="display:none;border:1px dashed var(--purple);background:#f7f4ff;color:var(--ink2)">📝 <b>还没有投递记录</b> —— 点上方「＋ 手动添加」新建一条，或从校招情报把岗位"投递"后自动写入；上方统计数字会随记录实时变化。</div>
   <div class="rfa-scroll">
     <table class="rfa-table" id="rfaTrackTable"></table>
   </div>
@@ -3683,12 +3687,83 @@ document.addEventListener('click', e=>{
       const rows=[...tbl.querySelectorAll('.tk-row')].filter(r=>r.querySelector('.tk-chk').checked);
       const links=rows.map(r=>{ const a=r.querySelector('td[data-col="简历投递链接"] a.cell-link'); return a?a.getAttribute('href'):''; }).filter(Boolean);
       if(!links.length){ alert('请先勾选至少一家公司的「简历投递链接」'); return; }
-      if(confirm('即将在新标签页打开 '+links.length+' 个投递链接，确认？')){
-        links.forEach(u=>window.open(u,'_blank','noopener'));
-      }
+      // 不用 confirm：确认框会打断浏览器对「用户点击手势」的信任，导致多个 window.open 被弹窗拦截只开第一个
+      links.forEach(u=>window.open(u,'_blank','noopener'));
     });
     syncDaySel(part);
   });
+
+  /* ===== 校招情报：Shift 区间连选 + 橡皮筋拖框多选（老版功能回归，用户 08-20 要求） ===== */
+  let intelAnchor=null;          // Shift 区间连选锚点行
+  let rbSuppressClick=false;     // 拖框刚结束，拦截随后的 click
+  let rb=null;                   // 当前拖框状态
+  function intelResyncAll(){ document.querySelectorAll('.day-part').forEach(p=>syncDaySel(p)); }
+  document.querySelectorAll('table[data-job]').forEach(tbl=>{
+    tbl.addEventListener('click', e=>{
+      if(rbSuppressClick){ rbSuppressClick=false; e.preventDefault(); e.stopPropagation(); return; }
+      const row=e.target.closest('.tk-row'); if(!row) return;
+      const c=row.querySelector('.tk-chk'); if(!c) return;
+      // Shift 区间连选（点勾选框也支持；锚点失效则落到当前行）
+      if(e.shiftKey){
+        const rows=[...tbl.querySelectorAll('.tk-row')];
+        let a=rows.indexOf(intelAnchor);
+        if(a<0){ intelAnchor=row; a=rows.indexOf(row); }
+        const b=rows.indexOf(row);
+        const [lo,hi]=a<b?[a,b]:[b,a];
+        const target=!c.checked;                     // 以当前行目标态为准
+        for(let i=lo;i<=hi;i++){ const cc=rows[i].querySelector('.tk-chk'); if(cc) cc.checked=target; }
+        intelResyncAll();
+        return;
+      }
+      if(e.target.closest('.tk-chk')){ intelAnchor=row; return; }   // 直接点勾选框：原生已 toggle，仅记锚点
+      if(e.target.closest('a,button,.rfa-filter,.rfa-expand')) return; // 链接/按钮放行原生
+      c.checked=!c.checked;                          // 普通点行：整行切换
+      intelAnchor=row;
+      intelResyncAll();
+    });
+  });
+  // 橡皮筋竖向拖框多选：在「校招情报」板块内按住左键拖动，碰到的行全选（像文件管理器一样）
+  function intelHitTest(top,h){
+    (rb.sec||document).querySelectorAll('table[data-job] .tk-row').forEach(r=>{
+      const rbr=r.getBoundingClientRect();
+      if(rbr.height===0) return;                     // 折叠/不可见块不选中
+      const hit=rbr.bottom>top && rbr.top<top+h;
+      r.classList.toggle('seling', hit);
+      const c=r.querySelector('.tk-chk'); if(c) c.checked=hit;
+    });
+  }
+  function rbStart(e){
+    if(e.button!==0) return;
+    rbSuppressClick=false;
+    const sec=e.target.closest('#today'); if(!sec) return;   // 只能在「校招情报」板块内起拖
+    if(e.target.closest('.tk-chk,button,a,input,.day-part-h,.rfa-toolbar,.rfa-filter,.combo,.day-selall')) return; // 交互控件不触发拖框
+    const r0=e.target.closest('.tk-row'); if(r0) intelAnchor=r0; // 起拖即记锚点
+    rb={ startY:e.clientY, box:null, sec, moved:false };
+    e.preventDefault();                              // 阻止拖拽时选中文本
+  }
+  function rbMove(e){
+    if(!rb) return;
+    const dy=e.clientY-rb.startY;
+    if(!rb.moved && Math.abs(dy)>4) rb.moved=true;  // 移动超过 4px 才算拖框
+    if(!rb.moved) return;
+    if(!rb.box){ rb.box=document.createElement('div'); rb.box.className='sel-box'; document.body.appendChild(rb.box); }
+    const top=Math.min(rb.startY,e.clientY), h=Math.abs(dy);
+    rb.box.style.top=top+'px'; rb.box.style.height=h+'px';
+    intelHitTest(top,h);
+    e.preventDefault();
+  }
+  function rbEnd(){
+    if(!rb) return;
+    const moved=rb.moved;
+    if(rb.box) rb.box.remove();
+    if(rb.sec) rb.sec.querySelectorAll('.tk-row.seling').forEach(r=>r.classList.remove('seling'));
+    rb=null;
+    if(moved){ rbSuppressClick=true; intelResyncAll(); } // 拖框结束→汇总计数；并拦截随后的 click
+  }
+  document.addEventListener('mousedown', rbStart);
+  document.addEventListener('mousemove', rbMove, {passive:false});
+  document.addEventListener('mouseup', rbEnd);
+  document.addEventListener('dragstart', e=>{ if(rb) e.preventDefault(); }); // 防止原生拖拽干扰橡皮筋
 
   /* ===== 多简历版本（默认运营版 + 新增复制当前 + 右键重命名 + 切版隔离 + 持久化） ===== */
   const verList=$('verList'), verAdd=$('verAdd');
@@ -4514,7 +4589,8 @@ document.addEventListener('click', e=>{
     tables.forEach(tbl=>{
       const dp=tbl.closest('.day-part'); const day = kind==='job' ? (dp?dp.dataset.day:'all') : 'all';
       const rows=data.filter(r=>matchRow(kind,r) && (kind!=='job'||dayPartFilter(day,r)));
-      const body = rows.length ? rows.map(r=>rowHTML(kind,r)).join('') : '<tr><td colspan="'+(cols.length + (kind==='job'?1:0))+'" style="text-align:center;color:var(--muted);padding:18px 10px">该时段暂无更新 · 导入最新 CSV 后将自动出现</td></tr>';
+      const emptyMsg = kind==='track' ? '还没有投递记录 —— 点「＋ 手动添加」或导入 CSV 开始记录' : '该时段暂无更新 · 导入最新 CSV 后将自动出现';
+      const body = rows.length ? rows.map(r=>rowHTML(kind,r)).join('') : '<tr><td colspan="'+(cols.length + (kind==='job'?1:0))+'" style="text-align:center;color:var(--muted);padding:18px 10px">'+emptyMsg+'</td></tr>';
       tbl.innerHTML = headerHTML(cols,kind,st) + '<tbody>'+body+'</tbody>';
       autoSizeAreas(tbl);
       bindLongPop(tbl);
@@ -4532,16 +4608,33 @@ document.addEventListener('click', e=>{
       const rows=data.filter(r=>matchRow(kind,r) && (kind!=='job'||dayPartFilter(day,r)));
       const tb=tbl.querySelector('tbody'); if(!tb) return;
       const span = (kind==='job'?JOB_COLS.length:TRACK_COLS.length) + (kind==='job'?1:0);
-      tb.innerHTML = rows.length ? rows.map(r=>rowHTML(kind,r)).join('') : '<tr><td colspan="'+span+'" style="text-align:center;color:var(--muted);padding:18px 10px">该时段暂无更新 · 导入最新 CSV 后将自动出现</td></tr>';
+      tb.innerHTML = rows.length ? rows.map(r=>rowHTML(kind,r)).join('') : '<tr><td colspan="'+span+'" style="text-align:center;color:var(--muted);padding:18px 10px">'+(kind==='track'?'还没有投递记录 —— 点「＋ 手动添加」或导入 CSV 开始记录':'该时段暂无更新 · 导入最新 CSV 后将自动出现')+'</td></tr>';
     });
     bindBody(kind);
     updateCount(kind);
+  }
+  /* 投递记录统计：按「最新状态」实时汇总（由写死数字改为动态统计，用户 08-20 要求） */
+  function updateTrackStats(){
+    const rows=TRACK_DATA||[];
+    const total=rows.length;
+    let ongoing=0, interview=0, offer=0, reject=0;
+    rows.forEach(r=>{
+      const s=String(r['最新状态']||'').trim();
+      if(s==='已投递'||s==='待笔试'||s==='待测评') ongoing++;
+      else if(s==='待一面'||s==='待二面'||s==='待HR面') interview++;
+      else if(s==='OC') offer++;
+      else if(s==='已挂') reject++;
+    });
+    const set=(k,v)=>{ const el=document.querySelector('.track-stats [data-stat="'+k+'"]'); if(el) el.textContent=v; };
+    set('total',total); set('ongoing',ongoing); set('interview',interview); set('offer',offer); set('reject',reject);
+    const guide=$('#trackEmptyGuide'); if(guide) guide.style.display = rows.length ? 'none' : '';
   }
   function updateCount(kind){
     const data=kind==='job'?JOB_DATA:TRACK_DATA;
     const shown=data.filter(r=>matchRow(kind,r)).length;
     const el=kind==='job'?$('#rfaJobCount'):$('#rfaTrackCount');
     if(el) el.textContent='显示 '+shown+' / 共 '+data.length+' 条';
+    if(kind==='track') updateTrackStats();   // 投递记录：统计数字实时跟随数据变化
     if(kind==='job'){
       jobTables().forEach(tbl=>{
         const dp=tbl.closest('.day-part'); const day=dp?dp.dataset.day:'all';
@@ -4997,6 +5090,13 @@ document.addEventListener('click', e=>{
       trackState.text=''; trackState.filters={}; trackState.dateFrom=''; trackState.dateTo='';
       const el=$('#rfaTrackSearch'); if(el) el.value='';
       render('track'); toast('已恢复显示全部投递记录');
+    });
+    // ＋ 手动添加（投递记录）：往 TRACK_DATA 加一条空白记录并重渲染（用户 08-20 要求回归）
+    const trackAddBtn=$('#trackAddBtn');
+    if(trackAddBtn) trackAddBtn.addEventListener('click',()=>{
+      TRACK_DATA.push({ __rid:'t'+Date.now(), '公司名称':'', '公司行业':'', '岗位':'', '招聘类型':'秋招', '地点':'', '最新状态':'已投递', '投递时间':todayStr(), '笔试':'', '一面':'', '二面':'', 'HR面':'', '备注':'' });
+      render('track');
+      toast('已添加一条投递记录，请填写公司 / 岗位等');
     });
     const jobReset=$('#rfaJobReset');
     if(jobReset) jobReset.addEventListener('click',()=>{
