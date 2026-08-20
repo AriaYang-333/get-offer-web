@@ -3687,12 +3687,10 @@ document.addEventListener('click', e=>{
       const rows=[...tbl.querySelectorAll('.tk-row')].filter(r=>r.querySelector('.tk-chk').checked);
       const links=rows.map(r=>{ const a=r.querySelector('td[data-col="简历投递链接"] a.cell-link'); return a?a.getAttribute('href'):''; }).filter(Boolean);
       if(!links.length){ alert('请先勾选至少一家公司的「简历投递链接」'); return; }
-      // 不用 confirm，也避开 window.open 被浏览器弹窗拦截：用「模拟点击 <a target=_blank>」批量打开（原生链接不受弹窗拦截限制）
-      links.forEach(u=>{
-        const a=document.createElement('a');
-        a.href=u; a.target='_blank'; a.rel='noopener';
-        document.body.appendChild(a); a.click(); a.remove();
-      });
+      // 非阻塞提示链接数（诊断用：若提示 N>1 却只开 1 个 = Chrome 弹窗拦截，需允许本站弹窗一次）
+      if(window.toast) toast('将打开 '+links.length+' 个投递链接');
+      // 同步 window.open 循环（保持在用户点击手势内，是浏览器放行多个弹窗的最佳尝试）
+      links.forEach(u=>window.open(u,'_blank','noopener'));
     });
     syncDaySel(part);
   });
