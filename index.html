@@ -58,6 +58,9 @@
   .vitem.on .vn{background:rgba(255,255,255,.25);color:#fff}
 
   .blocks-col{flex:1;min-width:0}
+  /* v0.8.13（08-21）：「已自动保存」右下角小提示——用户填完看到即安心，2.5s 自动淡出 */
+  .save-status{position:fixed;right:14px;bottom:14px;font-size:11.5px;color:#16a34a;background:rgba(255,255,255,.95);border:1px solid #d1fae5;border-radius:20px;padding:4px 12px;z-index:99;box-shadow:0 2px 8px rgba(16,24,40,.10);opacity:0;transform:translateY(4px);transition:opacity .3s,transform .3s;pointer-events:none}
+  .save-status.show{opacity:1;transform:translateY(0)}
   .block{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;scroll-margin-top:90px;box-shadow:0 2px 10px rgba(16,24,40,.06)}
   .block-h{font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:9px;margin-bottom:14px}
   .bn{width:24px;height:24px;border-radius:7px;background:var(--purple);color:#fff;font-size:12px;display:grid;place-items:center;flex:0 0 auto}
@@ -2627,6 +2630,36 @@ function deepRepair(saved, demo){
 }
 const DATA_SCHEMA = 'v4b-20260820';
 (function initVersions(){
+  // v0.8.13（08-21）：URL 带 ?fresh=1 → 强制从零开始——清空本域全部存储后重载为全新空白页。
+  // 用途：预览面板/调试浏览器等任何上下文，打开 http://127.0.0.1:8901/?fresh=1 即拿到「新用户首次打开」状态。
+  // ⚠️ 必须连 IndexedDB 一起删：简历/证件照等文件字节存在 rfa_files_db_v1（localStorage.clear() 清不到，08-21 用户实测照片残留）。
+  // ⚠️ 删除必须等回调/超时再跳转 + 先 close 缓存连接：否则旧页面连接会 onblocked 阻塞删除、或跳转太早删除未完成（实测库残留）。
+  // ⚠️ v0.8.13b（08-21）：fresh 必须「一次性生效」——sessionStorage 打标记，之后即使 URL 仍带 ?fresh=1
+  //    也只去掉参数、绝不再清空。否则用户填完数据后不小心刷新（地址栏还带 fresh）→ 数据被清空（用户实测踩坑）。
+  try{
+    if(/[?&]fresh=1/.test(location.search)){
+      var _freshDone = false;
+      try{ _freshDone = sessionStorage.getItem('rfa_fresh_once') === '1'; }catch(e){}
+      if(!_freshDone){
+        try{ sessionStorage.setItem('rfa_fresh_once','1'); }catch(e){}
+        localStorage.clear();
+        try{ if(typeof _rfaIDB !== 'undefined' && _rfaIDB && _rfaIDB.close) _rfaIDB.close(); }catch(e){}
+        try{ if(window.caches && caches.keys) caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); }catch(e){}
+        var _jumped = false;
+        function _jumpFresh(){ if(_jumped) return; _jumped = true; location.replace(location.pathname); }
+        try{
+          if(window.indexedDB){
+            var _del = indexedDB.deleteDatabase('rfa_files_db_v1');
+            _del.onsuccess = _jumpFresh; _del.onerror = _jumpFresh; _del.onblocked = _jumpFresh;
+            setTimeout(_jumpFresh, 900);
+          } else _jumpFresh();
+        }catch(e){ _jumpFresh(); }
+      } else {
+        location.replace(location.pathname);   // 已 fresh 过：只去参数，不动数据
+      }
+      return;
+    }
+  }catch(e){}
   // 用 schema 版本号区分「我们的旧测试数据」与「用户正常填写的数据」，
   // 不再用「用户本人真实姓名/学校」等做字面匹配（会误清空用户自己填的简历）。
   let raw='';
@@ -2736,7 +2769,17 @@ let _pt=null;
 function persist(){ try{ localStorage.setItem('rfa_versions_v2', JSON.stringify(versions)); localStorage.setItem('rfa_schema', DATA_SCHEMA); }catch(e){} }
 function schedulePersist(){ if(_pt) clearTimeout(_pt); _pt=setTimeout(()=>{ saveCurrent(); try{ if(autoSyncOn() && window.pushToPlugin){ window.pushToPlugin(); if(window.pushVersionsToPlugin) window.pushVersionsToPlugin(); } }catch(e){} }, 500); }
 function autoSyncOn(){ try{ return localStorage.getItem('rfa_auto_sync')!=='0'; }catch(e){ return true; } }
-function saveCurrent(){ try{ versions[verCur].data = captureDom(); persist(); }catch(e){} }
+function saveCurrent(){ try{ versions[verCur].data = captureDom(); persist(); showSaveStatus(); }catch(e){} }
+// v0.8.13（08-21）：「已自动保存 HH:MM」右下角小提示——用户填完看到即安心，2.5s 自动淡出
+function showSaveStatus(){
+  try{
+    const el=document.getElementById('saveStatus'); if(!el) return;
+    const d=new Date(); const p=n=>(''+n).padStart(2,'0');
+    el.textContent='✓ 已自动保存 '+p(d.getHours())+':'+p(d.getMinutes());
+    el.classList.add('show');
+    clearTimeout(el._t); el._t=setTimeout(()=>{ el.classList.remove('show'); }, 2500);
+  }catch(e){}
+}
 function renderResume(){
   const v = versions[verCur]; if(!v) return;
   const fn = document.querySelector('.upzone[data-uz="pdf"] .file-name');
@@ -3092,7 +3135,25 @@ document.addEventListener('click', e=>{
 });
 
 /* 导航与跟随（沿用 v2 逻辑） */
+// v0.8.13（08-21）：匿名使用统计埋点——只上报「哪个区块被打开/使用」，不含任何个人信息；
+// 按日节流（同一天同一事件只报一次），本地(localhost/127.0.0.1)开发时发本地 3000，否则发线上部署站。
+const AN_URL = /^(127\.0\.0\.1|localhost)$/.test(location.hostname)
+  ? 'http://127.0.0.1:3000/api/analytics'
+  : 'https://get-offer-web-9g31.onrender.com/api/analytics';
+function reportAnalytics(events){
+  try{
+    const today = new Date().toISOString().slice(0,10);
+    let sent = {}; try{ sent = JSON.parse(localStorage.getItem('rfa_an_sent')||'{}'); }catch(e){}
+    if(sent.date !== today){ sent = { date: today }; }
+    const evs = {}; let any = false;
+    Object.keys(events||{}).forEach(k=>{ if(!sent[k]){ evs[k] = Number(events[k])||1; sent[k] = 1; any = true; } });
+    if(!any) return;
+    try{ localStorage.setItem('rfa_an_sent', JSON.stringify(sent)); }catch(e){}
+    try{ fetch(AN_URL, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ date: today, events: evs, ver: 'web-0.8.13' }) }); }catch(e){}
+  }catch(e){}
+}
 const crumbMap={pdf:'简历 & 证件照',profile:'档案确认',today:'今日新增',track:'投递记录',ai:'API 设置',sync:'数据同步',feedback:'问题反馈',debug:'调试'};
+const crumbAn = { pdf:'profile_open', profile:'profile_open', today:'intel_open', track:'track_open', ai:'ai_search', sync:'sync_open' };
 document.querySelectorAll('.navitem').forEach(n=>{
   n.addEventListener('click',()=>{
     document.querySelectorAll('.navitem').forEach(x=>x.classList.remove('on'));
@@ -3102,6 +3163,7 @@ document.querySelectorAll('.navitem').forEach(n=>{
     document.getElementById(s).classList.add('on');
     const _crumb=document.getElementById('crumb'); if(_crumb) _crumb.textContent=crumbMap[s];
     document.getElementById('main').scrollTo({top:0});
+    if(crumbAn[s]) reportAnalytics({ [crumbAn[s]]: 1 });
   });
 });
 const main=document.getElementById('main');
@@ -3666,8 +3728,10 @@ document.addEventListener('click', e=>{
         const payload = adaptForPlugin(ver.data || {});
         const files = await gatherSyncFiles();
         payload.__files = files;
-        // 读取当前 profiles，把当前版本写进对应 id 的 data（保持多版本结构）
-        const store = await new Promise(function(res){ try{ document.dispatchEvent(new CustomEvent('__RFA_GETSTORAGE__', { detail:{ keys:['profiles','activeProfileId'] } })); }catch(e){ res(null); } });
+        // v0.8.13 修复（08-21）：这里曾有行死代码——`await new Promise(只 dispatch __RFA_GETSTORAGE__、
+        // 不监听 __RFA_GETSTORAGE_RESULT__、也不 resolve)` 导致 await 永远挂起，
+        // 后面的 __RFA_SETSTORAGE__（真正写插件的同步事件）永远执行不到 → 点「同步到插件」
+        // 无任何写入、插件显示"暂无档案"。该 store 变量本就没被使用，直接删除。
         document.dispatchEvent(new CustomEvent('__RFA_SETSTORAGE__', {
           detail: { __rfa_sync_one: { id: ver.id, name: ver.name, data: payload, __files: files } }
         }));
@@ -3950,6 +4014,9 @@ document.addEventListener('click', e=>{
     const c=vitems.find(x=>x.dataset.b===blockId);
     if(c){ vitems.forEach(x=>x.classList.remove('on')); c.classList.add('on'); }
   }
+  // v0.8.13（08-21 用户拍板）：黄标查漏是"按需"功能——还没上传/解析档案（空白模板）时左侧不显示任何黄标，
+  // 只有用户点过「🟡 标黄查漏」进入查漏模式（missMode=true）后，黄框 + 左侧黄圈徽标才出现；再点一次取消全部消失。
+  let missMode = false;
   // 统计每个板块未填数，在左侧导航显示「黄圈徽标」。仅在用户真正填满该板块后才消失——不随滚动/点击自动消失
   function refreshMissBadges(){
     document.querySelectorAll('#subnav .vitem').forEach(c=>{
@@ -3961,7 +4028,7 @@ document.addEventListener('click', e=>{
         });
       }
       let b=c.querySelector('.vmiss');
-      if(cnt>0){
+      if(cnt>0 && missMode){
         c.classList.add('has-miss');
         if(!b){ b=document.createElement('span'); b.className='vmiss'; c.appendChild(b); }
         b.textContent=cnt;
@@ -3982,6 +4049,7 @@ document.addEventListener('click', e=>{
       if(on){ el.classList.remove('missed'); }          // 取消圈黄：全部移除
       else if(empty){ el.classList.add('missed'); }     // 圈黄：只给未填的加
     });
+    missMode = !on;   // v0.8.13：进入/退出查漏模式（决定左侧黄圈徽标是否显示）
     refreshMissBadges();
     if(missBtn){
       if(on){ missBtn.dataset.on='0'; missBtn.textContent='🟡 标黄查漏'; }
@@ -5273,6 +5341,8 @@ document.addEventListener('click', e=>{
 
   /* ---------- 初始化 ---------- */
   function init(){
+    // v0.8.13（08-21）：页面打开 → 上报匿名活跃 + 档案确认（每天每设备一次，节流在 reportAnalytics 内）
+    try{ if(window.reportAnalytics) reportAnalytics({ dau:1, profile_open:1 }); }catch(e){}
     try{
       const params=new URLSearchParams(location.search);
       if(params.get('admin')==='rfa-owner-2026'){ try{localStorage.setItem('rfa_admin','1');}catch(e){} }
@@ -5472,5 +5542,7 @@ document.addEventListener('click', e=>{
 })();
 
 </script>
+<!-- v0.8.13（08-21）：已自动保存 右下角提示 -->
+<div id="saveStatus" class="save-status"></div>
 </body>
 </html>

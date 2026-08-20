@@ -16,7 +16,9 @@
  *   POST /api/intel/upload   管理员(Bearer ADMIN_KEY)：body { csv } 更新情报
  *   POST /api/feedback       公开：body { t, ver, page, desc, contact? } 接收反馈
  *   GET  /api/feedback       管理员(Bearer ADMIN_KEY)：列出全部反馈
- *   GET  /admin              管理后台页（上传 CSV / 看反馈）
+ *   POST /api/analytics      公开：body { date, ver?, events:{dau,profile_open,intel_open,track_open,ai_search,sync_open,fill_count} } 匿名使用统计（不含个人信息）
+ *   GET  /api/analytics      管理员(Bearer ADMIN_KEY)：返回 { summary, byDate, feedbackTotal }
+ *   GET  /admin              管理后台页（上传 CSV / 看反馈 / 看产品数据）
  *   其余路径               静态托管（默认页 our-plugin-web-v4-white.html）
  */
 
@@ -38,6 +40,11 @@ const HTML_FILE = (()=>{ const a=path.join(STATIC_DIR,'index.html'); if(fs.exist
 
 const INTEL_FILE = path.join(DATA_DIR, 'intel.json');
 const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
+const ANALYTICS_FILE = path.join(DATA_DIR, 'analytics.json');
+
+// 匿名产品使用统计：仅计数，不含任何个人信息 / 简历内容
+const ANALYTICS_KEYS = ['dau', 'profile_open', 'intel_open', 'track_open', 'ai_search', 'sync_open', 'fill_count'];
+function emptyAnalyticsBucket(){ const o = { ver:'' }; ANALYTICS_KEYS.forEach(k=>o[k]=0); return o; }
 
 /* ---------- 工具 ---------- */
 function ensureDir(d){ try{ fs.mkdirSync(d, { recursive: true }); }catch(e){} }
@@ -62,7 +69,8 @@ function readBody(req){
   return new Promise((resolve, reject)=>{
     let data = '';
     let tooBig = false;
-    req.on('data', chunk => { data += chunk; if(data.length > 5*1024*1024){ tooBig = true; req.destroy(); } });
+    // 上限 30MB：CSV 经 JSON unicode 转义后体积约 3 倍，7700+ 行约 6.5MB，需放宽
+    req.on('data', chunk => { data += chunk; if(data.length > 30*1024*1024){ tooBig = true; req.destroy(); } });
     req.on('end', ()=> tooBig ? reject(new Error('body too large')) : resolve(data));
     req.on('error', reject);
   });
@@ -151,6 +159,18 @@ const server = http.createServer(async (req, res)=>{
   const url = req.url || '/';
   const pathname = url.split('?')[0];
 
+  // v0.8.13（08-21）：跨域预检——网页版(8901/线上) fetch /api/analytics 会先发 OPTIONS，
+  // 之前没处理导致浏览器端上报被 CORS 拦截（curl 直测正常、浏览器上报失败）。
+  if(req.method === 'OPTIONS'){
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    });
+    return res.end();
+  }
+
   try{
     // 健康检查（部署平台探活用）
     if(req.method === 'GET' && pathname === '/api/health'){
@@ -213,6 +233,41 @@ const server = http.createServer(async (req, res)=>{
       if(!bearerOk(req)) return send(res, 401, { error:'unauthorized' });
       const list = readJSON(FEEDBACK_FILE, []);
       return send(res, 200, { total: list.length, items: list.slice(0, 200) });
+    }
+
+    // 产品使用统计：公开上报（匿名 · 仅计数，不含个人信息）
+    if(req.method === 'POST' && pathname === '/api/analytics'){
+      const raw = await readBody(req);
+      let body; try{ body = JSON.parse(raw); }catch(e){ return send(res, 400, { error:'invalid json' }); }
+      const date = body.date || '';
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return send(res, 400, { error:'date required (YYYY-MM-DD)' });
+      const events = (body.events && typeof body.events === 'object') ? body.events : {};
+      const bucket = emptyAnalyticsBucket();
+      ANALYTICS_KEYS.forEach(k=>{
+        const v = Number(events[k]);
+        if(Number.isFinite(v) && v >= 0) bucket[k] = Math.min(Math.floor(v), 1e6);
+      });
+      if(body.ver) bucket.ver = String(body.ver).slice(0, 32);
+      // 合并到按日期累加的存储
+      const all = readJSON(ANALYTICS_FILE, {});
+      if(!all[date]) all[date] = emptyAnalyticsBucket();
+      ANALYTICS_KEYS.forEach(k=>{ all[date][k] = (all[date][k]||0) + bucket[k]; });
+      if(bucket.ver) all[date].ver = bucket.ver;
+      writeJSON(ANALYTICS_FILE, all);
+      return send(res, 200, { ok:true, date });
+    }
+
+    // 产品使用统计：管理员读取（含每日明细 + 汇总 + 反馈聚合）
+    if(req.method === 'GET' && pathname === '/api/analytics'){
+      if(!bearerOk(req)) return send(res, 401, { error:'unauthorized' });
+      const all = readJSON(ANALYTICS_FILE, {});
+      const dates = Object.keys(all).sort().reverse();
+      const last = dates.slice(0, 60);
+      const byDate = {}; last.forEach(d=> byDate[d] = all[d]);
+      const summary = emptyAnalyticsBucket();
+      dates.forEach(d=> ANALYTICS_KEYS.forEach(k=>{ summary[k] = (summary[k]||0) + (all[d][k]||0); }));
+      const fb = readJSON(FEEDBACK_FILE, []);
+      return send(res, 200, { totalDays: dates.length, summary, byDate, feedbackTotal: fb.length });
     }
 
     // 兜底：静态托管
