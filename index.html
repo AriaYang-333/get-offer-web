@@ -3552,6 +3552,16 @@ document.addEventListener('click', e=>{
       }catch(e){}
       return out;
     }
+    // 等待 content.js 事件桥回执（__RFA_SETSTORAGE_RESULT__），让「同步到插件」不再是黑箱
+    function rfaWaitBridgeResult(timeout){
+      timeout = timeout || 1500;
+      return new Promise(function(res){
+        var done=false;
+        function on(e){ done=true; try{ document.removeEventListener('__RFA_SETSTORAGE_RESULT__', on); }catch(_){} res((e&&e.detail)||{}); }
+        try{ document.addEventListener('__RFA_SETSTORAGE_RESULT__', on); }catch(_){ res({ok:false,error:'no-listener'}); return; }
+        setTimeout(function(){ if(!done){ try{ document.removeEventListener('__RFA_SETSTORAGE_RESULT__', on); }catch(_){} res({ok:false,error:'timeout'}); } }, timeout);
+      });
+    }
     async function pushToPlugin(){
       // 经 __RFA_SETSTORAGE__ 事件桥同步：普通网页没有 chrome.runtime（Chrome 安全机制），
       // 网页 dispatch 事件 → content.js 监听后代写 chrome.storage.local（隔离世界有权限）。
@@ -3566,10 +3576,17 @@ document.addEventListener('click', e=>{
         document.dispatchEvent(new CustomEvent('__RFA_SETSTORAGE__', {
           detail: { __rfa_sync_one: { id: ver.id, name: ver.name, data: payload, __files: files } }
         }));
+        const res = await rfaWaitBridgeResult();
         const t=new Date(); try{ localStorage.setItem('rfa_last_sync', String(t.getTime())); }catch(e){}
-        const fs=Object.keys(files).length;
-        setExtStat('已同步 '+t.toLocaleTimeString('zh-CN')+(fs?(' · 含'+fs+'个文件'):''), 'ok');
-        try{ if(window.toast) toast('✓ 已同步到插件'+(fs?('（含'+fs+'个文件）'):'')); }catch(e){}
+        if(res && res.ok){
+          const fs=Object.keys(files).length;
+          setExtStat('✓ 已同步 '+t.toLocaleTimeString('zh-CN')+(fs?(' · 含'+fs+'个文件'):''), 'ok');
+          try{ if(window.toast) toast('✓ 已同步到插件'+(fs?('（含'+fs+'个文件）'):'')); }catch(e){}
+        } else {
+          const why = (res&&res.error) ? String(res.error) : '插件未响应';
+          setExtStat('✗ 同步失败：'+why+'（请到 chrome://extensions 刷新本插件后重试）', 'err');
+          try{ if(window.toast) toast('✗ 同步失败：'+why+'（请刷新插件）'); }catch(e){}
+        }
       }catch(e){ setExtStat('发送异常：'+String(e.message||e).slice(0,80), 'err'); }
     }
     window.pushToPlugin = pushToPlugin; // 挂全局，供 schedulePersist 自动推送调用
@@ -3585,6 +3602,12 @@ document.addEventListener('click', e=>{
         document.dispatchEvent(new CustomEvent('__RFA_SETSTORAGE__', {
           detail: { profiles: payload, activeProfileId: activeId }
         }));
+        const res = await rfaWaitBridgeResult();
+        if(!(res && res.ok)){
+          const why = (res&&res.error) ? String(res.error) : '插件未响应';
+          setExtStat('✗ 同步失败：'+why+'（请到 chrome://extensions 刷新本插件后重试）', 'err');
+          try{ if(window.toast) toast('✗ 同步失败：'+why+'（请刷新插件）'); }catch(e){}
+        }
       }catch(e){}
     }
     window.pushVersionsToPlugin = pushVersionsToPlugin;
