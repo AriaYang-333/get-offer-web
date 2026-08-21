@@ -2660,6 +2660,20 @@ const DATA_SCHEMA = 'v4b-20260820';
       return;
     }
   }catch(e){}
+  // v0.8.13（08-21 用户第 4 次强调「每次给我的网页版必须 = 全新用户空白，和我这边一致」）：
+  // ?blank=1 = 强制空白展示模式——每次加载都强制清档案 + 文件，显示「新用户首次打开」状态。
+  // 与 fresh=1（一次性，之后刷新保留用户数据）不同：blank 每次进来都生效，专门用于
+  // 助手交付/演示，保证任何上下文（预览面板/调试浏览器）打开看到的一定是空白，绝不串旧数据。
+  // 注意：不清 aiKey 等 AI 设置（用户配的 Key 保留），只清档案数据 + 文件字节。
+  try{
+    if(/[?&]blank=1/.test(location.search)){
+      try{ localStorage.removeItem('rfa_versions_v2'); }catch(e){}
+      try{ if(typeof _rfaIDB !== 'undefined' && _rfaIDB && _rfaIDB.close) _rfaIDB.close(); }catch(e){}
+      try{ if(typeof rfaClearAll === 'function') rfaClearAll(); }catch(e){}
+      try{ if(window.indexedDB) indexedDB.deleteDatabase('rfa_files_db_v1'); }catch(e){}
+      // 不跳转、保留参数：下方正常走 seedDemo 空模板初始化
+    }
+  }catch(e){}
   // 用 schema 版本号区分「我们的旧测试数据」与「用户正常填写的数据」，
   // 不再用「用户本人真实姓名/学校」等做字面匹配（会误清空用户自己填的简历）。
   let raw='';
