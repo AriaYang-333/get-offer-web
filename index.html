@@ -3327,6 +3327,12 @@ document.addEventListener('change',e=>{
     // 真·存字节（IndexedDB，刷新不丢）
     if(dlkey) rfaPutFile(dlkey, file);
     if(fn && dlkey) fn.setAttribute('data-dlkey', dlkey);
+    // v0.8.13（08-21 用户反馈「文件没上传」）：详细文档(.docx)上传成功后【自动触发解析】——
+    // 之前必须再手动点「解析为简历档案」，容易被漏掉，导致档案空白被误以为「文件没上传」。
+    if(uz && uz.dataset.uz==='doc' && /\.docx$/i.test(file.name)){
+      const pbtn=document.querySelector('.parse-btn');
+      if(pbtn && !pbtn.disabled){ setTimeout(()=>{ try{ pbtn.click(); }catch(e){} }, 400); }
+    }
   } else {
     if(fn){fn.className='file-name empty'; fn.textContent='未选择文件';}
     if(btn) btn.textContent='选择文件';
