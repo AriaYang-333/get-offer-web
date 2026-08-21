@@ -3732,17 +3732,28 @@ document.addEventListener('click', e=>{
       // v0.8.13（08-21 用户反馈「简历 PDF 没上传到招聘官网」）：简历 PDF / 证件照两个上传区之前漏收集——
       // 只收了作品集卡片，导致插件 fileVault 永远没有 resume/photo → 一键投递时简历附件传不上官网。
       // ⚠️ 注意：versions/verCur 是 let 顶层变量，window.versions 恒 undefined，必须用 typeof 判断。
+      // v0.8.13c（08-21 用户追问「网页和插件不是同步的吗，为什么旧文件还在」）：
+      //   同步必须【以网页版界面为准】——PDF/证件照区显示「已选择」才收集；显示「未选择文件」
+      //   （用户删了/没传）就【不收集】→ 插件侧对应旧文件会被清掉，两边真正一致，不再残留旧附件。
       try{
         const verId=(typeof versions!=='undefined' && versions[verCur]) ? versions[verCur].id : '';
-        const pdfRec=await rfaGetFile(verId+'|resume');
-        if(pdfRec && pdfRec.blob){
-          if(pdfRec.blob.size>RFA_FILE_SYNC_CAP){ out.resume={skip:true,name:pdfRec.name,size:pdfRec.blob.size}; }
-          else out.resume={name:pdfRec.name,type:pdfRec.type||'application/pdf',base64:await rfaBlobToB64(pdfRec.blob),size:pdfRec.blob.size};
+        const pdfUz=document.querySelector('.upzone[data-uz=pdf]');
+        const pdfHasFile = pdfUz && ((pdfUz.querySelector('.file-name')||{}).classList||[]).contains('ok');
+        if(pdfHasFile){
+          const pdfRec=await rfaGetFile(verId+'|resume');
+          if(pdfRec && pdfRec.blob){
+            if(pdfRec.blob.size>RFA_FILE_SYNC_CAP){ out.resume={skip:true,name:pdfRec.name,size:pdfRec.blob.size}; }
+            else out.resume={name:pdfRec.name,type:pdfRec.type||'application/pdf',base64:await rfaBlobToB64(pdfRec.blob),size:pdfRec.blob.size};
+          }
         }
-        const photoRec=await rfaGetFile('photo|shared');
-        if(photoRec && photoRec.blob){
-          if(photoRec.blob.size>RFA_FILE_SYNC_CAP){ out.photo={skip:true,name:photoRec.name,size:photoRec.blob.size}; }
-          else out.photo={name:photoRec.name,type:photoRec.type||'image/jpeg',base64:await rfaBlobToB64(photoRec.blob),size:photoRec.blob.size};
+        const photoUz=document.querySelector('.upzone[data-uz=photo]');
+        const photoHasFile = photoUz && ((photoUz.querySelector('.file-name')||{}).classList||[]).contains('ok');
+        if(photoHasFile){
+          const photoRec=await rfaGetFile('photo|shared');
+          if(photoRec && photoRec.blob){
+            if(photoRec.blob.size>RFA_FILE_SYNC_CAP){ out.photo={skip:true,name:photoRec.name,size:photoRec.blob.size}; }
+            else out.photo={name:photoRec.name,type:photoRec.type||'image/jpeg',base64:await rfaBlobToB64(photoRec.blob),size:photoRec.blob.size};
+          }
         }
       }catch(e){}
       return out;
