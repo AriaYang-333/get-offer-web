@@ -210,7 +210,7 @@
   .cv-ta{width:100%;min-height:96px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;resize:vertical;box-sizing:border-box;line-height:1.7;transition:.13s}
   .cv-ta:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(108,74,247,.12)}
   /* 标黄查漏：未填输入框黄框标记（点「🟡 标黄查漏」圈黄，填写后自动消黄；温和黄框，不整屏高亮） */
-  .cv-in.missed,.cv-ta.missed,.txt-in.missed{border-color:#f5c518;background:#fffbe8;box-shadow:0 0 0 3px rgba(245,197,24,.16)}
+  .cv-in.missed,.cv-ta.missed,.txt-in.missed,.sel.missed,select.cc-sel2.missed{border-color:#f5c518;background:#fffbe8;box-shadow:0 0 0 3px rgba(245,197,24,.16)}
   /* 板块提示小字 */
   .bnote{font-size:11.5px;color:var(--ink2);background:#f7f8fc;border:1px solid var(--line);border-radius:8px;padding:7px 11px;margin-bottom:12px;line-height:1.6}
   /* 区块右侧说明面板（作品集等） */
@@ -4018,13 +4018,21 @@ document.addEventListener('click', e=>{
   // 只有用户点过「🟡 标黄查漏」进入查漏模式（missMode=true）后，黄框 + 左侧黄圈徽标才出现；再点一次取消全部消失。
   let missMode = false;
   // 统计每个板块未填数，在左侧导航显示「黄圈徽标」。仅在用户真正填满该板块后才消失——不随滚动/点击自动消失
+  // v0.8.13b（08-21 用户验收）：标黄查漏必须覆盖「下拉」——区号 select.cc-sel2 和档案下拉 .sel
+  // （data-value 存值）之前漏在检测范围外，用户没选区号/下拉时点标黄不显示。统一判空函数。
+  function isFieldEmpty(el){
+    if(!el) return true;
+    if(el.tagName === 'SELECT') return el.value === '' || el.value == null;
+    if(el.classList && el.classList.contains('sel')) return !(el.dataset && el.dataset.value);
+    return el.value === '' || el.value == null;
+  }
   function refreshMissBadges(){
     document.querySelectorAll('#subnav .vitem').forEach(c=>{
       const block=document.getElementById(c.dataset.b);
       let cnt=0;
       if(block){
-        block.querySelectorAll('.cv-in,.cv-ta,.txt-in').forEach(el=>{
-          if(el.value==='' || el.value==null) cnt++;
+        block.querySelectorAll('.cv-in,.cv-ta,.txt-in,.sel,select.cc-sel2').forEach(el=>{
+          if(isFieldEmpty(el)) cnt++;
         });
       }
       let b=c.querySelector('.vmiss');
@@ -4041,10 +4049,10 @@ document.addEventListener('click', e=>{
   // 真正的查漏逻辑：按钮点击调用。给未填字段刷黄框（点一次圈黄、再点取消，填写即消黄），并刷新左侧导航数字徽标；不再自动滚动跳转（避免页面跳动看不清）
   function runMissCheck(){
     let n=0;
-    const els=document.querySelectorAll('#blocksCol .cv-in, #blocksCol .cv-ta, #blocksCol .txt-in');
+    const els=document.querySelectorAll('#blocksCol .cv-in, #blocksCol .cv-ta, #blocksCol .txt-in, #blocksCol .sel, #blocksCol select.cc-sel2');
     const on = missBtn ? missBtn.dataset.on==='1' : false;   // 当前是否处于"已圈黄"状态
     els.forEach(el=>{
-      const empty=(el.value==='' || el.value==null);
+      const empty=isFieldEmpty(el);
       if(empty) n++;
       if(on){ el.classList.remove('missed'); }          // 取消圈黄：全部移除
       else if(empty){ el.classList.add('missed'); }     // 圈黄：只给未填的加
@@ -4059,7 +4067,7 @@ document.addEventListener('click', e=>{
   if(missBtn) missBtn.addEventListener('click', runMissCheck);
   // 页面加载完成（本脚本块已执行、所有函数已定义）：自动统计一次各板块未填徽标（补上 renderProfile 首次渲染时因跨脚本块跳过的统计）
   try{ refreshMissBadges(); }catch(e){}
-  // 黄色边框 + 左侧黄圈：仅当用户真正编辑（输入）该字段时才消除——不是滚动/点击时
+  // 黄色边框 + 左侧黄圈：仅当用户真正编辑（输入/选择）该字段时才消除——不是滚动/点击时
   if(blocksCol) blocksCol.addEventListener('input', e=>{
     const el=e.target.closest('.cv-in, .cv-ta, .txt-in');
     if(el){
@@ -4067,6 +4075,15 @@ document.addEventListener('click', e=>{
       refreshMissBadges();   // 重新统计：该板块填满后左侧黄圈才消失
     }
     schedulePersist();
+  });
+  // v0.8.13b：下拉字段（区号 select.cc-sel2 用 change；档案 .sel 是自定义组件选完不派发 change → 用 click 冒泡消黄）
+  if(blocksCol) blocksCol.addEventListener('change', e=>{
+    const el = e.target && e.target.closest ? e.target.closest('select.cc-sel2') : null;
+    if(el){ el.classList.remove('missed'); refreshMissBadges(); }
+  });
+  if(blocksCol) blocksCol.addEventListener('click', e=>{
+    const opt = e.target && e.target.closest ? e.target.closest('.sel-opt') : null;
+    if(opt){ const sel = opt.closest('.sel'); if(sel){ sel.classList.remove('missed'); refreshMissBadges(); } }
   });
 
   /* ===== 投递记录表格（飞书同款） ===== */
