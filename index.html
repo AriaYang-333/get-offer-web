@@ -2661,13 +2661,15 @@ const DATA_SCHEMA = 'v4b-20260820';
     }
   }catch(e){}
   // v0.8.13（08-21 用户第 4 次强调「每次给我的网页版必须 = 全新用户空白，和我这边一致」）：
-  // ?blank=1 = 强制空白展示模式——每次加载都强制清档案 + 文件，显示「新用户首次打开」状态。
+  // ?blank=1 = 强制空白展示模式——每次加载都清档案 + 文件，显示「新用户首次打开」状态。
   // 与 fresh=1（一次性，之后刷新保留用户数据）不同：blank 每次进来都生效，专门用于
   // 助手交付/演示，保证任何上下文（预览面板/调试浏览器）打开看到的一定是空白，绝不串旧数据。
-  // 注意：不清 aiKey 等 AI 设置（用户配的 Key 保留），只清档案数据 + 文件字节。
+  // ⚠️ v0.8.13 用户纠正：全新用户首次打开 = 零配置，连 API Key 也不该有——否则「新用户模板」
+  //    里残留使用者自己的 Key，既不符合新用户定义、又有 Key 泄露风险。故 blank 连 AI 设置一起清。
   try{
     if(/[?&]blank=1/.test(location.search)){
       try{ localStorage.removeItem('rfa_versions_v2'); }catch(e){}
+      try{ localStorage.removeItem('aiKey'); localStorage.removeItem('aiProvider'); localStorage.removeItem('aiBase'); localStorage.removeItem('aiModel'); }catch(e){}
       try{ if(typeof _rfaIDB !== 'undefined' && _rfaIDB && _rfaIDB.close) _rfaIDB.close(); }catch(e){}
       try{ if(typeof rfaClearAll === 'function') rfaClearAll(); }catch(e){}
       try{ if(window.indexedDB) indexedDB.deleteDatabase('rfa_files_db_v1'); }catch(e){}
