@@ -3764,6 +3764,11 @@ document.addEventListener('click', e=>{
       if(!ver){ setExtStat('无档案可同步', 'warn'); return; }
       try{
         const payload = adaptForPlugin(ver.data || {});
+        // v0.8.13（08-21 用户反馈「同步提示没显示含N个文件」）：上传 PDF/文件后**立刻**点同步时，
+        // rfaPutFile 的 IndexedDB 写入是异步的（change 事件里没 await），gatherSyncFiles 可能
+        // 读不到刚上传的文件 → 这次同步不含文件 → 提示只有「已同步 11:18」没有「含N个文件」。
+        // 修复：收集文件前等 500ms 让 IDB 事务落盘（用户手速再快也够）。
+        await new Promise((r) => setTimeout(r, 500));
         const files = await gatherSyncFiles();
         payload.__files = files;
         // v0.8.13 修复（08-21）：这里曾有行死代码——`await new Promise(只 dispatch __RFA_GETSTORAGE__、
