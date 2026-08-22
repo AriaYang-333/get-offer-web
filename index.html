@@ -211,7 +211,7 @@
   .cv-ta:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(108,74,247,.12)}
   /* 标黄查漏：未填输入框黄框标记（点「🟡 标黄查漏」圈黄，填写后自动消黄；温和黄框，不整屏高亮） */
   .cv-in.missed,.cv-ta.missed,.txt-in.missed,.sel.missed,select.cc-sel2.missed{border-color:#f5c518;background:#fffbe8;box-shadow:0 0 0 3px rgba(245,197,24,.16)}
-  /* 区号下拉专属：基础样式 .crow.phone-split .cc-sel2 优先级(0,3,0) 会压住上面的 select.cc-sel2.missed(0,2,1)，故提权到(0,4,0) 才能显黄框 */
+  /* 区号下拉专属：基础样式 .crow.phone-split .cc-sel2 优先级(0,3,0) 会压住上面的 select.cc-sel2.missed(0,2,1)，故提权到(0,4,0) 才能显黄框 */ /* deploy-nudge 6898023b */
   .crow.phone-split select.cc-sel2.missed{border-color:#f5c518;background:#fffbe8;box-shadow:0 0 0 3px rgba(245,197,24,.30)}
   /* 板块提示小字 */
   .bnote{font-size:11.5px;color:var(--ink2);background:#f7f8fc;border:1px solid var(--line);border-radius:8px;padding:7px 11px;margin-bottom:12px;line-height:1.6}
