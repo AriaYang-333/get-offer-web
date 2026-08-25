@@ -4238,9 +4238,9 @@ document.addEventListener('click', e=>{
   if(verAdd) verAdd.addEventListener('click',()=>{
     const nm=prompt('新版本名称（如「产品版」「技术版」「春招版」）：'); if(!nm||!nm.trim()) return;
     const note=prompt('给这个版本写个备注（可选，说明它侧重什么）：','');
-    const curData = Object.assign({}, versions[verCur].data||{}, captureDom()); // 先存当前版本（合并保留 resumePDF，08-25 修复新建版本丢 PDF）
+    const curData = Object.assign({}, versions[verCur].data||{}, captureDom()); // 先存当前版本（合并保留 resumePDF，08-25 修复切版本丢 PDF）
     versions[verCur].data = curData;
-    versions.push({id:'v'+Date.now(),name:nm.trim(),note:note?note.trim():'',fixed:false, data: Object.assign({}, curData)}); // 新版本=复制当前（含 PDF 文件名）
+    versions.push({id:'v'+Date.now(),name:nm.trim(),note:note?note.trim():'',fixed:false, data: Object.assign({}, curData, {resumePDF:''})}); // 新版本=复制当前，但 PDF 文件名清空（PDF 按版本隔离：新产品版不应继承运营版 PDF）
     verCur=versions.length-1; renderProfile(); renderVers(); persist(); window.syncVersionsToPluginNow();
   });
   renderVers();
