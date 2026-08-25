@@ -5069,6 +5069,7 @@ document.addEventListener('click', e=>{
     bindHeader(kind);
     bindBody(kind);
     updateCount(kind);
+    if(kind==='track'){ try{ localStorage.setItem('rfa_track_data', JSON.stringify(TRACK_DATA)); }catch(e){} }   // 08-25 修复：投递记录此前纯内存、刷新即丢——所有修改都经 render，渲染即持久化
   }
   function refreshRows(kind){
     const data=kind==='job'?JOB_DATA:TRACK_DATA;
@@ -5084,6 +5085,7 @@ document.addEventListener('click', e=>{
     });
     bindBody(kind);
     updateCount(kind);
+    if(kind==='track'){ try{ localStorage.setItem('rfa_track_data', JSON.stringify(TRACK_DATA)); }catch(e){} }   // 08-25 修复：refreshRows 同样持久化（编辑单元格走的轻量刷新路径）
   }
   /* 投递记录统计：按「最新状态」实时汇总（由写死数字改为动态统计，用户 08-20 要求） */
   function updateTrackStats(){
