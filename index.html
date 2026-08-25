@@ -2973,7 +2973,7 @@ let _pt=null;
 function persist(){ try{ localStorage.setItem('rfa_versions_v2', JSON.stringify(versions)); localStorage.setItem('rfa_schema', DATA_SCHEMA); }catch(e){} }
 function schedulePersist(){ if(_pt) clearTimeout(_pt); _pt=setTimeout(()=>{ saveCurrent(); try{ if(autoSyncOn() && window.pushToPlugin){ window.pushToPlugin(); if(window.pushVersionsToPlugin) window.pushVersionsToPlugin(); } }catch(e){} }, 500); }
 function autoSyncOn(){ try{ return localStorage.getItem('rfa_auto_sync')!=='0'; }catch(e){ return true; } }
-function saveCurrent(){ try{ versions[verCur].data = captureDom(); persist(); showSaveStatus(); }catch(e){} }
+function saveCurrent(){ try{ versions[verCur].data = Object.assign({}, versions[verCur].data||{}, captureDom()); persist(); showSaveStatus(); }catch(e){} }
 // v0.8.13（08-21）：「已自动保存 HH:MM」右下角小提示——用户填完看到即安心，2.5s 自动淡出
 function showSaveStatus(){
   try{
@@ -4225,7 +4225,7 @@ document.addEventListener('click', e=>{
         chip.innerHTML=v.name+(v.note?('<span class="vs-note">'+v.note+'</span>'):'');
         chip.addEventListener('click',()=>{
           if(i===verCur) return;
-          versions[verCur].data = captureDom();   // 切走前先存当前版本编辑
+          versions[verCur].data = Object.assign({}, versions[verCur].data||{}, captureDom());   // 切走前先存当前版本编辑（合并保留 resumePDF 等非区块字段，08-25 修复切版本丢 PDF）
           verCur=i; renderProfile(); renderVers(); renderResume(); persist(); window.syncVersionsToPluginNow();
         });
         chip.addEventListener('contextmenu',e=>{ e.preventDefault();
@@ -4238,8 +4238,9 @@ document.addEventListener('click', e=>{
   if(verAdd) verAdd.addEventListener('click',()=>{
     const nm=prompt('新版本名称（如「产品版」「技术版」「春招版」）：'); if(!nm||!nm.trim()) return;
     const note=prompt('给这个版本写个备注（可选，说明它侧重什么）：','');
-    versions[verCur].data = captureDom();        // 先存当前版本
-    versions.push({id:'v'+Date.now(),name:nm.trim(),note:note?note.trim():'',fixed:false, data: captureDom()}); // 新版本=复制当前
+    const curData = Object.assign({}, versions[verCur].data||{}, captureDom()); // 先存当前版本（合并保留 resumePDF，08-25 修复新建版本丢 PDF）
+    versions[verCur].data = curData;
+    versions.push({id:'v'+Date.now(),name:nm.trim(),note:note?note.trim():'',fixed:false, data: Object.assign({}, curData)}); // 新版本=复制当前（含 PDF 文件名）
     verCur=versions.length-1; renderProfile(); renderVers(); persist(); window.syncVersionsToPluginNow();
   });
   renderVers();
