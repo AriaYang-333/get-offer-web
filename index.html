@@ -2789,6 +2789,7 @@ const BLOCK_MAP = Object.fromEntries(BLOCKS.map(b=>[b.id,b]));
 const syncBoxHtml = `<div class="subnav-sync">
   <div class="ss-h">同步到插件</div>
   <button type="button" class="blk-sync" id="blkSyncSub" title="把当前网页档案立即同步到插件（含日期/作品集/文件）">🔄 立即同步到插件</button>
+  <button type="button" class="blk-sync" id="blkPullFromPlugin" title="把插件里的档案拉回网页（反向同步：插件面板/解析/上传产生的新数据同步到网页）">⬇️ 从插件拉取</button>
 </div>`;
 document.getElementById('subnav').innerHTML = syncBoxHtml + BLOCKS.map((b,idx)=>
   `<div class="vitem${idx===0?' on':''}" data-b="${b.id}"><span class="vn">${b.n}</span>${b.t}</div>`
@@ -3892,6 +3893,93 @@ document.addEventListener('click', e=>{
       out.selfEval = (typeof d.selfEval === 'string') ? d.selfEval : '';
       return out;
     }
+    // #549（2026-08-27）：反向同步 —— 插件英文结构 → 网页中文结构（键翻转 + 特殊字段处理）
+    function adaptFromPlugin(d){
+      if(!d || typeof d !== 'object') return {};
+      const flip = (map) => { const o={}; for(const k in map){ o[map[k]]=k; } return o; };
+      const F_B = flip(RFA_BMAP), F_E = flip(RFA_EMAP), F_I = flip(RFA_IMAP),
+            F_P = flip(RFA_PMAP), F_C = flip(RFA_CMAP), F_PO = flip(RFA_POMAP),
+            F_AW = flip(RFA_AWMAP), F_L = flip(RFA_LMAP), F_CE = flip(RFA_CEMAP),
+            F_PA = flip(RFA_PAMAP), F_PT = flip(RFA_PTMAP), F_CO = flip(RFA_COMAP),
+            F_R = flip(RFA_RMAP), F_AI = flip(RFA_AIMAP);
+      const out = {};
+      out.basic = rfaMapFields(d.basic, F_B);
+      out.educations = (d.education||[]).map(it=>rfaMapFields(it, F_E));
+      out.internships = (d.internships||[]).map(it=>rfaMapFields(it, F_I));
+      out.projects = (d.projects||[]).map(it=>rfaMapFields(it, F_P));
+      out.campus = (d.campus||[]).map(it=>rfaMapFields(it, F_C));
+      out.portfolio = (d.portfolio||[]).map(it=>rfaMapFields(it, F_PO));
+      out.awards = (d.awards||[]).map(it=>rfaMapFields(it, F_AW));
+      out.languages = (d.languages||[]).map(it=>rfaMapFields(it, F_L));
+      out.certificates = (d.certificates||[]).map(it=>rfaMapFields(it, F_CE));
+      out.papers = (d.papers||[]).map(it=>rfaMapFields(it, F_PA));
+      out.patent = (d.patents||[]).map(it=>rfaMapFields(it, F_PT));
+      out.competitions = (d.competitions||[]).map(it=>rfaMapFields(it, F_CO));
+      // social：插件 {platform,account,link} → 网页 {k,v,link}
+      out.social = (d.social||[]).map(it=>({ k: it.platform||'', v: it.account||'', link: it.link||'' }));
+      // skills：插件数组 → 网页 {技能: 'a、b、c'}
+      out.skills = { '技能': (Array.isArray(d.skills)?d.skills:[]).join('、') };
+      // intent
+      const iv = d.intent || {};
+      out.intent = [{
+        '期望城市': Array.isArray(iv.expectedCities)?iv.expectedCities.join('、'):String(iv.expectedCities||''),
+        '可面试城市': String(iv.interviewCity||''),
+        '到岗时间': String(iv.availableFrom||''),
+        '可实习时长': String(iv.internshipDuration||''),
+        '每周出勤': String(iv.weeklyDays||''),
+        '期望薪资': String(iv.expectedSalary||''),
+        '是否接受调剂': String(iv.acceptOtherCities||'')
+      }];
+      out.reference = [rfaMapFields(d.reference, F_R)];
+      out.aiSkills = [rfaMapFields(d.aiSkills, F_AI)];
+      out.devLang = d.devLang && typeof d.devLang==='object' ? d.devLang : {};
+      out.selfEval = typeof d.selfEval==='string' ? d.selfEval : '';
+      return out;
+    }
+    // #549：从插件拉取档案（反向同步）
+    function pullFromPlugin(){
+      return new Promise(function(resolve, reject){
+        if(!document.dispatchEvent) { reject(new Error('环境不支持事件桥')); return; }
+        let got=false;
+        const to=setTimeout(function(){ if(!got){ got=true; document.removeEventListener('__RFA_GETSTORAGE_RESULT__', h); reject(new Error('插件未响应（请确认扩展已加载）')); } }, 4000);
+        function h(e){
+          if(got) return; got=true; clearTimeout(to);
+          document.removeEventListener('__RFA_GETSTORAGE_RESULT__', h);
+          resolve((e&&e.detail)||{});
+        }
+        document.addEventListener('__RFA_GETSTORAGE_RESULT__', h);
+        document.dispatchEvent(new CustomEvent('__RFA_GETSTORAGE__', { detail: { keys: ['profiles','activeProfileId'] } }));
+      });
+    }
+    async function pullFromPluginNow(){
+      const st = document.getElementById('extSyncStat');
+      if(st) st.textContent = '拉取中…';
+      try{
+        const res = await pullFromPlugin();
+        const profiles = Array.isArray(res.profiles) ? res.profiles : [];
+        const activeId = res.activeProfileId;
+        if(!profiles.length){ if(st) st.textContent = '插件里暂无档案（先去插件/网页导入）'; return; }
+        // 插件 profiles → 网页 versions（保留网页现有 id/name，按 active 对齐）
+        const next = profiles.map(function(p, i){
+          return {
+            id: p.id || ('p'+(i+1)),
+            name: p.name || ('档案'+(i+1)),
+            data: adaptFromPlugin(p.data || {})
+          };
+        });
+        versions = next;
+        verCur = Math.max(0, next.findIndex(function(v){ return v.id === activeId; }));
+        if(verCur < 0) verCur = 0;
+        persist();
+        try{ if(window.renderProfile) renderProfile(); }catch(e){}
+        try{ if(window.renderVers) renderVers(); }catch(e){}
+        if(st) st.textContent = '✓ 已从插件拉取 '+next.length+' 份档案';
+        try{ if(window.toast) toast('✓ 已从插件拉取 '+next.length+' 份档案（反向同步）'); }catch(e){}
+      }catch(e){
+        if(st) st.textContent = '✗ 拉取失败：'+(e.message||e);
+        try{ if(window.toast) toast('✗ 拉取失败：'+(e.message||e)); }catch(e2){}
+      }
+    }
     function getExtId(){ try{ return (localStorage.getItem('rfa_ext_id')||'').trim(); }catch(e){ return ''; } }
     // —— 文件字节内联同步：从 IndexedDB 取字节 → base64，随 RFA_SYNC 一并送插件 ——
     const RFA_FILE_SYNC_CAP = 5*1024*1024; // 单文件 ≤5MB（解码后）才随同步内联；更大提示手动上传
@@ -4087,6 +4175,8 @@ document.addEventListener('click', e=>{
     if(syncNow) syncNow.addEventListener('click', ()=>{ setExtStat('同步中…'); saveCurrent(); pushToPlugin(); if(window.pushVersionsToPlugin) window.pushVersionsToPlugin(); });
     const blkSyncSub = document.getElementById('blkSyncSub');
     if(blkSyncSub) blkSyncSub.addEventListener('click', ()=>{ setExtStat('同步中…'); saveCurrent(); pushToPlugin(); if(window.pushVersionsToPlugin) window.pushVersionsToPlugin(); });
+    const blkPullFromPlugin = document.getElementById('blkPullFromPlugin');
+    if(blkPullFromPlugin) blkPullFromPlugin.addEventListener('click', ()=>{ try{ saveCurrent(); }catch(e){} pullFromPluginNow(); });
     const testBtn = document.getElementById('extTest');
     if(testBtn) testBtn.addEventListener('click', testConn);
     try{ const ls = localStorage.getItem('rfa_last_sync'); if(ls && extSyncStat) setExtStat('上次同步 '+new Date(+ls).toLocaleTimeString('zh-CN'), ''); }catch(e){}
