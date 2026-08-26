@@ -3952,13 +3952,12 @@ document.addEventListener('click', e=>{
       });
     }
     async function pullFromPluginNow(){
-      const st = document.getElementById('extSyncStat');
-      if(st) st.textContent = '拉取中…';
       try{
+        if(typeof setExtStat === 'function') setExtStat('拉取中…');
         const res = await pullFromPlugin();
         const profiles = Array.isArray(res.profiles) ? res.profiles : [];
         const activeId = res.activeProfileId;
-        if(!profiles.length){ if(st) st.textContent = '插件里暂无档案（先去插件/网页导入）'; return; }
+        if(!profiles.length){ if(typeof setExtStat === 'function') setExtStat('插件里暂无档案（先去插件/网页导入）'); return; }
         // 插件 profiles → 网页 versions（保留网页现有 id/name，按 active 对齐）
         const next = profiles.map(function(p, i){
           return {
@@ -3973,13 +3972,14 @@ document.addEventListener('click', e=>{
         persist();
         try{ if(window.renderProfile) renderProfile(); }catch(e){}
         try{ if(window.renderVers) renderVers(); }catch(e){}
-        if(st) st.textContent = '✓ 已从插件拉取 '+next.length+' 份档案';
+        if(typeof setExtStat === 'function') setExtStat('✓ 已从插件拉取 '+next.length+' 份档案');
         try{ if(window.toast) toast('✓ 已从插件拉取 '+next.length+' 份档案（反向同步）'); }catch(e){}
       }catch(e){
-        if(st) st.textContent = '✗ 拉取失败：'+(e.message||e);
+        if(typeof setExtStat === 'function') setExtStat('✗ 拉取失败：'+(e.message||e));
         try{ if(window.toast) toast('✗ 拉取失败：'+(e.message||e)); }catch(e2){}
       }
     }
+    window.pullFromPluginNow = pullFromPluginNow; // 挂全局（与 pushToPlugin 一致），供外部/调试调用
     function getExtId(){ try{ return (localStorage.getItem('rfa_ext_id')||'').trim(); }catch(e){ return ''; } }
     // —— 文件字节内联同步：从 IndexedDB 取字节 → base64，随 RFA_SYNC 一并送插件 ——
     const RFA_FILE_SYNC_CAP = 5*1024*1024; // 单文件 ≤5MB（解码后）才随同步内联；更大提示手动上传
