@@ -4093,7 +4093,6 @@ document.addEventListener('click', e=>{
   const btn=document.querySelector('.parse-btn');
   if(btn){
     btn.addEventListener('click', async ()=>{
-      const prevDisabled=btn.disabled;
       try{
         const docZone=document.querySelector('.doc-zone');
         const fileInput=docZone?docZone.querySelector('.card-file-input'):null;
@@ -4115,10 +4114,11 @@ document.addEventListener('click', e=>{
         const cnt=fillParsed(parsed);
         persist(); renderProfile();
         btn.textContent='解析完成 ✓';
+        btn.disabled=false; // #修复 08-31：成功后必须恢复可点——否则按钮永久 disabled，第2/3个版本再也解析不了
         toastFn('已解析并填入档案（共 '+cnt+' 个板块），请核对修改');
         setTimeout(()=>{ if(btn.textContent==='解析完成 ✓') btn.textContent=old; }, 2500);
       }catch(err){
-        btn.disabled=prevDisabled;
+        btn.disabled=false;
         if(btn.textContent==='解析中…') btn.textContent='解析为简历档案';
         toastFn('解析失败：'+(err&&err.message?err.message:err));
       }
